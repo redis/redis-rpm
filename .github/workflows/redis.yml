@@ -109,7 +109,7 @@ jobs:
           python-version: ${{env.pythonversion}}
       - run: gem install fpm -v ${{env.fpmversion}}
       - name: download dependencies
-      - uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v2
         with:
           name: redis-${{env.redisversion}}-${{env.osnick}}-${{env.arch}}
           path: deps/redis-${{env.redisversion}}-${{env.osnick}}-${{env.arch}}
