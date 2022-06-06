@@ -1,0 +1,231 @@
+on:
+  push:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - '.github/worfklows/release.yml'
+    branches:
+      - master
+      - '[0-9].[0-9]'
+  pull_request:
+    branches:
+      - master
+      - '[0-9].[0-9]'
+
+env:
+  pythonversion: 3.9
+  rubyversion: 2.7.2
+  fpmversion: 1.14.1
+  redisversion: 7.0.0
+
+jobs:
+
+  rhel7:
+    name: RedHat 7 Build
+    runs-on: ubuntu-latest
+    container: centos:7
+    strategy:
+      matrix:
+        arch: ["x86_64"]
+    steps:
+      - name: install dependencies
+        run: yum install -y epel-release gcc make jemalloc-devel openssl-devel python3 python3-pip
+      - uses: actions/checkout@v2
+        with:
+          repository: redis/redis
+          path: redis
+          ref: ${{env.redisversion}}
+      - name: Cache dependencies
+        uses: actions/cache@v2
+        with:
+          path: |
+            /var/cache/yum
+          key: cache-${{hashFiles('.github/workflows/*.yml')}}
+      - name: make
+        run: make -C redis/src all BUILD_TLS=yes
+      - name: perist redis
+        uses: actions/upload-artifact@v2
+        with:
+          name: redis-${{env.redisversion}}-rhel7-${{matrix.arch}}
+          path: |
+            redis/src/redis-server
+            redis/src/redis-sentinel
+            redis/src/redis-check-aof
+            redis/src/redis-check-rdb
+            redis/src/redis-benchmark
+            redis/src/redis-cli
+
+  rhel8:
+    name: RedHat 8 Build
+    runs-on: ubuntu-latest
+    container: oraclelinux:8
+    strategy:
+      matrix:
+        arch: ["x86_64"]
+    steps:
+      - name: install dependencies
+        run: |
+          dnf install -y oracle-epel-release-el8
+          dnf install -y gcc make jemalloc-devel openssl-devel tar git python3 python3-pip
+      - uses: actions/checkout@v2
+        with:
+          repository: redis/redis
+          path: redis
+          ref: ${{env.redisversion}}
+      - name: Cache dependencies
+        uses: actions/cache@v2
+        with:
+          path: |
+            /var/cache/yum
+          key: cache-${{hashFiles('.github/workflows/*.yml')}}
+      - name: make
+        run: make -C redis/src all BUILD_TLS=yes
+      - name: perist redis
+        uses: actions/upload-artifact@v2
+        with:
+          name: redis-${{env.redisversion}}-rhel8-${{matrix.arch}}
+          path: |
+            redis/src/redis-server
+            redis/src/redis-sentinel
+            redis/src/redis-check-aof
+            redis/src/redis-check-rdb
+            redis/src/redis-benchmark
+            redis/src/redis-cli
+
+  package-rhel7:
+    name: Package ${{matrix.osnick}}
+    runs-on: ubuntu-latest
+    needs: ["rhel7"]
+    env:
+      osnick: rhel7
+    strategy:
+      matrix:
+        arch: ["x86_64"]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "${{env.rubyversion}}"
+      - name: install python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{env.pythonversion}}
+      - run: gem install fpm -v ${{env.fpmversion}}
+      - name: download dependencies
+        uses: actions/download-artifact@v2
+        with:
+          name: redis-${{env.redisversion}}-${{env.osnick}}-${{matrix.arch}}
+          path: deps/redis-${{env.redisversion}}-${{env.osnick}}-${{matrix.arch}}
+      - name: display structure
+        run: ls -R
+
+      - name: assemble and build the package
+        run: |
+          bash package.sh ${{env.redisversion}} ${{matrix.arch}} ${{env.osnick}}
+      # gpg signing fun
+      - name: install gpg key
+        run: |
+          cat <(echo -e "${{ secrets.GPG_KEY }}") | gpg --batch --import
+      - name: get gpg id from key
+        id: get_gpg_id
+        run: |
+          gpg_id=`gpg --list-keys|sed -n 4p|awk '{print $1}'`
+          echo "::set-output name=GPG_ID::$gpg_id"
+      - name: get gpg email address
+        id: get_gpg_email
+        run: |
+          gpg_email=`gpg -k|grep uid|cut -d '<' -f 2-2|cut -d '>' -f 1-1`
+          echo "::set-output name=GPG_EMAIL::$gpg_email"
+      - name: get gpg_keygrip
+        id: get_gpg_keygrip
+        run: |
+          keygrip=`gpg -k --with-keygrip |sed -n 5p|cut -d '=' -f 2-2`
+          echo "::set-output name=GPG_KEYGRIP::$keygrip"
+      - name: gpg sign package
+        run: |
+          gpg --export -a '${{ steps.get_gpg_email.outputs.GPG_EMAIL }}' > key
+          rpm --import key
+          echo allow-preset-passphrase > ~/.gnupg/gpg-agent.conf
+          gpg-connect-agent reloadagent /bye
+          /usr/lib/gnupg/gpg-preset-passphrase -P '${{ secrets.GPG_PASSWORD }}' -c --preset ${{ steps.get_gpg_keygrip.outputs.GPG_KEYGRIP }}
+          rpmsign --addsign --key-id ${{ steps.get_gpg_id.outputs.GPG_ID}} *.rpm
+          rm key
+      - name: perist rpm
+        uses: actions/upload-artifact@v2
+        with:
+          name: redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm
+          path: redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm
+
+  package-rhel8:
+    name: Package ${{matrix.osnick}}
+    runs-on: ubuntu-latest
+    needs: ["rhel8"]
+    env:
+      osnick: rhel8
+    strategy:
+      matrix:
+        arch: ["x86_64"]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "${{env.rubyversion}}"
+      - name: install python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{env.pythonversion}}
+      - run: gem install fpm -v ${{env.fpmversion}}
+      - name: download dependencies
+        uses: actions/download-artifact@v2
+        with:
+          name: redis-${{env.redisversion}}-${{env.osnick}}-${{matrix.arch}}
+          path: deps/redis-${{env.redisversion}}-${{env.osnick}}-${{matrix.arch}}
+      - name: display structure
+        run: ls -R
+
+      - name: assemble and build the package
+        run: |
+          bash package.sh ${{env.redisversion}} ${{matrix.arch}} ${{env.osnick}}
+      # gpg signing fun
+      - name: install gpg key
+        run: |
+          cat <(echo -e "${{ secrets.GPG_KEY }}") | gpg --batch --import
+      - name: get gpg id from key
+        id: get_gpg_id
+        run: |
+          gpg_id=`gpg --list-keys|sed -n 4p|awk '{print $1}'`
+          echo "::set-output name=GPG_ID::$gpg_id"
+      - name: get gpg email address
+        id: get_gpg_email
+        run: |
+          gpg_email=`gpg -k|grep uid|cut -d '<' -f 2-2|cut -d '>' -f 1-1`
+          echo "::set-output name=GPG_EMAIL::$gpg_email"
+      - name: get gpg_keygrip
+        id: get_gpg_keygrip
+        run: |
+          keygrip=`gpg -k --with-keygrip |sed -n 5p|cut -d '=' -f 2-2`
+          echo "::set-output name=GPG_KEYGRIP::$keygrip"
+      - name: gpg sign package
+        run: |
+          gpg --export -a '${{ steps.get_gpg_email.outputs.GPG_EMAIL }}' > key
+          rpm --import key
+          echo allow-preset-passphrase > ~/.gnupg/gpg-agent.conf
+          gpg-connect-agent reloadagent /bye
+          /usr/lib/gnupg/gpg-preset-passphrase -P '${{ secrets.GPG_PASSWORD }}' -c --preset ${{ steps.get_gpg_keygrip.outputs.GPG_KEYGRIP }}
+          rpmsign --addsign --key-id ${{ steps.get_gpg_id.outputs.GPG_ID}} *.rpm
+          rm key
+      - name: perist rpm
+        uses: actions/upload-artifact@v2
+        with:
+          name: redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm
+          path: redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm
+      - uses: s3-actions/s3cmd@v1.1
+        with:
+          provider: aws
+          region: us-east-1
+          access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      - name: persist packages to s3
+        run: |
+          s3cmd put -P redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm \
+             s3://redismodules/lab/25-packagingbase/redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm
