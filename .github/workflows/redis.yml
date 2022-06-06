@@ -219,4 +219,12 @@ jobs:
         with:
           name: redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm
           path: redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm
-
+      - uses: s3-actions/s3cmd@v1.1
+        with:
+          provider: aws
+          region: us-east-1
+          access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      - name: persist packages to s3
+          s3cmd put -P redis-tools-${{env.redisversion}-1.${{matrix.arch}}.${{env.osnick}}.rpm \
+             s3://redismodules/lab/25-packagingbase/redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm

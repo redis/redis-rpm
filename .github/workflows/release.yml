@@ -1,0 +1,55 @@
+name: Publish RPMs
+
+on:
+  push:
+    tags:
+      - '*'
+
+env:
+  pythonversion: 3.9
+  rubyversion: 2.7.2
+
+  # Path to the S3 bucket containing our pre-build packages
+  s3root: s3://redismodules/lab/25-packagingbase/
+
+  # Name of the s3 bucket within the account, used to publish our feeds
+  # eg: redismodules
+  s3publicreponame: packages.redis.io
+
+jobs:
+  publish_rpm:
+
+    name: Publish RPM [${{ matrix.osnick }}] Feed
+    runs-on: ubuntu-latest
+    container: oraclelinux:8
+    strategy:
+      matrix:
+        osnick: [rhel7, rhel8]
+        arch: [x86_64]
+    steps:
+      - name: get version from tag
+        id: get_version
+        run: |
+          realversion="${GITHUB_REF/refs\/tags\//}"
+          echo "::set-output name=VERSION::$realversion"
+
+      - name: install dependencies
+        run: |
+          dnf install -y epel-release python39 python39-pip createrepo git tar
+      - name: install s3cmd
+        run: |
+          pip3 install s3cmd
+      - name: get files from s3
+        run: |
+          s3cmd --access_key=${{secrets.PACKAGES_AWS_ACCESS_KEY_ID}} --secret_key=${{secrets.PACKAGES_AWS_SECRET_ACCESS_KEY}} \
+            sync s3://${{ env.s3publicreponame }}/rpm/${{matrix.osnick}}/ s3uploads/
+          mkdir -p s3uploads/${{ matrix.arch }}
+          cd s3uploads/${{matrix.arch}}
+          s3cmd --access_key=${{secrets.AWS_ACCESS_KEY_ID}} --secret_key=${{secrets.AWS_SECRET_ACCESS_KEY}} \
+            get --force ${{env.s3root}}/*${{ steps.get_version.outputs.VERSION }}*${{ matrix.osnick }}*${{ matrix.arch }}.rpm .
+
+      - name: update packages and publish upstream
+        run: |
+          createrepo --update s3uploads/
+          s3cmd --access_key=${{secrets.PACKAGES_AWS_ACCESS_KEY_ID}} --secret_key=${{secrets.PACKAGES_AWS_SECRET_ACCESS_KEY}} \
+            sync --acl-public s3uploads/* s3://${{ env.s3publicreponame }}/rpm/${{ matrix.osnick }}/
