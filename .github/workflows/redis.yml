@@ -227,5 +227,5 @@ jobs:
           secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       - name: persist packages to s3
         run: |
-          s3cmd put -P redis-tools-${{env.redisversion}-1.${{matrix.arch}}.${{env.osnick}}.rpm \
+          s3cmd put -P redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm \
              s3://redismodules/lab/25-packagingbase/redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm
