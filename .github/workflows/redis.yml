@@ -118,31 +118,40 @@ jobs:
       - name: display structure
         run: ls -R
 
-#      # gpg signing fun
-#      - name: install gpg key
-#        run: |
-#          cat <(echo -e "${{ secrets.GPG_KEY }}") | gpg --batch --import
-#      - name: get gpg id from key
-#        id: get_gpg_id
-#        run: |
-#          gpg_id=`gpg --list-keys|sed -n 4p|awk '{print $1}'`
-#          echo "::set-output name=GPG_ID::$gpg_id"
-#      - name: get gpg email address
-#        id: get_gpg_email
-#        run: |
-#          gpg_email=`gpg -k|grep uid|cut -d '<' -f 2-2|cut -d '>' -f 1-1`
-#          echo "::set-output name=GPG_EMAIL::$gpg_email"
-#      - name: get gpg_keygrip
-#        id: get_gpg_keygrip
-#        run: |
-#          keygrip=`gpg -k --with-keygrip |sed -n 5p|cut -d '=' -f 2-2`
-#          echo "::set-output name=GPG_KEYGRIP::$keygrip"
-#      - name: gpg sign package
-#        run: |
-#          gpg --export -a '${{ steps.get_gpg_email.outputs.GPG_EMAIL }}' > key
-#          rpm --import key
-#          echo allow-preset-passphrase > ~/.gnupg/gpg-agent.conf
-#          gpg-connect-agent reloadagent /bye
-#          /usr/lib/gnupg/gpg-preset-passphrase -P '${{ secrets.GPG_PASSWORD }}' -c --preset ${{ steps.get_gpg_keygrip.outputs.GPG_KEYGRIP }}
-#          rpmsign --addsign --key-id ${{ steps.get_gpg_id.outputs.GPG_ID}} *.rpm
-#          rm key
+      - name: assemble and build the package
+        run: |
+          bash package.sh ${{matrix.arch}} ${{env.osnick}}
+      # gpg signing fun
+      - name: install gpg key
+        run: |
+          cat <(echo -e "${{ secrets.GPG_KEY }}") | gpg --batch --import
+      - name: get gpg id from key
+        id: get_gpg_id
+        run: |
+          gpg_id=`gpg --list-keys|sed -n 4p|awk '{print $1}'`
+          echo "::set-output name=GPG_ID::$gpg_id"
+      - name: get gpg email address
+        id: get_gpg_email
+        run: |
+          gpg_email=`gpg -k|grep uid|cut -d '<' -f 2-2|cut -d '>' -f 1-1`
+          echo "::set-output name=GPG_EMAIL::$gpg_email"
+      - name: get gpg_keygrip
+        id: get_gpg_keygrip
+        run: |
+          keygrip=`gpg -k --with-keygrip |sed -n 5p|cut -d '=' -f 2-2`
+          echo "::set-output name=GPG_KEYGRIP::$keygrip"
+      - name: gpg sign package
+        run: |
+          gpg --export -a '${{ steps.get_gpg_email.outputs.GPG_EMAIL }}' > key
+          rpm --import key
+          echo allow-preset-passphrase > ~/.gnupg/gpg-agent.conf
+          gpg-connect-agent reloadagent /bye
+          /usr/lib/gnupg/gpg-preset-passphrase -P '${{ secrets.GPG_PASSWORD }}' -c --preset ${{ steps.get_gpg_keygrip.outputs.GPG_KEYGRIP }}
+          rpmsign --addsign --key-id ${{ steps.get_gpg_id.outputs.GPG_ID}} *.rpm
+          rm key
+      - name: perist rpm
+        uses: actions/upload-artifact@v2
+        with:
+          name: redis-tools-${{env.redisversion}}-rhel8-${{matrix.arch}}.rpm
+          path: *.rpm
+
