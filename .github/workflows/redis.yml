@@ -121,7 +121,7 @@ jobs:
 
       - name: assemble and build the package
         run: |
-          bash package.sh ${env.redisversion}} ${{matrix.arch}} ${{env.osnick}}
+          bash package.sh ${{env.redisversion}} ${{matrix.arch}} ${{env.osnick}}
       # gpg signing fun
       - name: install gpg key
         run: |
