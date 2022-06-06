@@ -102,6 +102,7 @@ jobs:
       matrix:
         arch: ["x86_64"]
     steps:
+      - uses: actions/checkout@v2
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "${{env.rubyversion}}"
