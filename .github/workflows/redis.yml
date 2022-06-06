@@ -1,0 +1,140 @@
+name: Build
+
+on:
+  push:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - '.github/worfklows/release.yml'
+    branches:
+      - master
+      - '[0-9].[0-9]'
+  pull_request:
+
+env:
+  pythonversion: 3.9
+  rubyversion: 2.7.2
+  fpmversion: 1.14.1
+  redisversion: 7.0.0
+
+jobs:
+
+  rhel7:
+    name: RHEL7 Build
+    runs-on: ubuntu-latest
+    container: centos:7
+    steps:
+    - name: install dependencies
+      run: yum install -y epel-release gcc make jemalloc-devel openssl-devel python3 python3-pip
+    - uses: actions/checkout@v2
+      with:
+        repository: redis/redis
+        path: redis
+        ref: ${{env.redisversion}}
+    - name: Cache dependencies
+      uses: actions/cache@v2
+      with:
+        path: |
+          /var/cache/yum
+        key: cache-${{hashFiles('.github/workflows/*.yml')}}
+    - name: make
+      run: make -C redis/src all BUILD_TLS=yes
+    - name: perist redis
+      uses: actions/upload-artifact@v2
+      with:
+        name: redis-${{env.redisversion}}-rhel7-x86_64
+        path: |
+          redis/src/redis-server
+          redis/src/redis-sentinel
+          redis/src/redis-check-aof
+          redis/src/redis-check-rdb
+          redis/src/redis-benchmark
+          redis/src/redis-cli
+
+  rhel8:
+    name: RHEL8 Build
+    runs-on: ubuntu-latest
+    container: oraclelinux:8
+    steps:
+      - name: install dependencies
+        run: |
+          dnf install -y oracle-epel-release-el8
+          dnf install -y gcc make jemalloc-devel openssl-devel tar git python3 python3-pip
+      - uses: actions/checkout@v2
+        with:
+          repository: redis/redis
+          path: redis
+          ref: ${{env.redisversion}}
+      - name: Cache dependencies
+        uses: actions/cache@v2
+        with:
+          path: |
+            /var/cache/yum
+          key: cache-${{hashFiles('.github/workflows/*.yml')}}
+      - name: make
+        run: make -C redis/src all BUILD_TLS=yes
+      - name: perist redis
+        uses: actions/upload-artifact@v2
+        with:
+          name: redis-${{env.redisversion}}-rhel8-x86_64
+          path: |
+            redis/src/redis-server
+            redis/src/redis-sentinel
+            redis/src/redis-check-aof
+            redis/src/redis-check-rdb
+            redis/src/redis-benchmark
+            redis/src/redis-cli
+
+  package:
+    name: Package ${{matrix.osnick}}
+    runs-on: ubuntu-latest
+    needs: ["${{matrix.osnick}}"]
+    strategy:
+      matrix:
+        osnick: ['rhel7', 'rhel8']
+        arch: x86_64
+    steps:
+      - uses: ruby/setup-ruby@v1
+      - name: install python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{env.pythonversion}}
+      - run: gem install fpm -v ${{env.fpmversion}}
+
+      - name: download dependencies
+      - uses: actions/download-artifact@v2
+        with:
+          name: redis-${{env.redisversion}}-${{env.osnick}}-${{env.arch}}
+          path: deps/redis-${{env.redisversion}}-${{env.osnick}}-${{env.arch}}
+      - name: display structure
+        run: ls -R
+
+      # gpg signing fun
+      - name: install gpg key
+        run: |
+          cat <(echo -e "${{ secrets.GPG_KEY }}") | gpg --batch --import
+      - name: get gpg id from key
+        id: get_gpg_id
+        run: |
+          gpg_id=`gpg --list-keys|sed -n 4p|awk '{print $1}'`
+          echo "::set-output name=GPG_ID::$gpg_id"
+      - name: get gpg email address
+        id: get_gpg_email
+        run: |
+          gpg_email=`gpg -k|grep uid|cut -d '<' -f 2-2|cut -d '>' -f 1-1`
+          echo "::set-output name=GPG_EMAIL::$gpg_email"
+      - name: get gpg_keygrip
+        id: get_gpg_keygrip
+        run: |
+          keygrip=`gpg -k --with-keygrip |sed -n 5p|cut -d '=' -f 2-2`
+          echo "::set-output name=GPG_KEYGRIP::$keygrip"
+#      - name: gpg sign package
+#        if: ${{ env.target }} = 'deb'
+#        run: |
+#          gpg --export -a '${{ steps.get_gpg_email.outputs.GPG_EMAIL }}' > key
+#          rpm --import key
+#          echo allow-preset-passphrase > ~/.gnupg/gpg-agent.conf
+#          gpg-connect-agent reloadagent /bye
+#          /usr/lib/gnupg/gpg-preset-passphrase -P '${{ secrets.GPG_PASSWORD }}' -c --preset ${{ steps.get_gpg_keygrip.outputs.GPG_KEYGRIP }}
+#          rpmsign --addsign --key-id ${{ steps.get_gpg_id.outputs.GPG_ID}} *.rpm
+#          rm key
