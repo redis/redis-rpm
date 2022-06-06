@@ -92,7 +92,7 @@ jobs:
             redis/src/redis-benchmark
             redis/src/redis-cli
 
-  package-rhe7:
+  package-rhel7:
     name: Package ${{matrix.osnick}}
     runs-on: ubuntu-latest
     needs: ["rhel7"]
@@ -153,6 +153,70 @@ jobs:
       - name: perist rpm
         uses: actions/upload-artifact@v2
         with:
-          name: redis-tools-${{env.redisversion}}-1.rhel8.${{matrix.arch}}.rpm
-          path: redis-tools-${{env.redisversion}}-1.rhel8.${{matrix.arch}}.rpm
+          name: redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm
+          path: redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm
+
+  package-rhel8:
+    name: Package ${{matrix.osnick}}
+    runs-on: ubuntu-latest
+    needs: ["rhel8"]
+    env:
+      osnick: rhel8
+    strategy:
+      matrix:
+        arch: ["x86_64"]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "${{env.rubyversion}}"
+      - name: install python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{env.pythonversion}}
+      - run: gem install fpm -v ${{env.fpmversion}}
+      - name: download dependencies
+        uses: actions/download-artifact@v2
+        with:
+          name: redis-${{env.redisversion}}-${{env.osnick}}-${{matrix.arch}}
+          path: deps/redis-${{env.redisversion}}-${{env.osnick}}-${{matrix.arch}}
+      - name: display structure
+        run: ls -R
+
+      - name: assemble and build the package
+        run: |
+          bash package.sh ${{env.redisversion}} ${{matrix.arch}} ${{env.osnick}}
+      # gpg signing fun
+      - name: install gpg key
+        run: |
+          cat <(echo -e "${{ secrets.GPG_KEY }}") | gpg --batch --import
+      - name: get gpg id from key
+        id: get_gpg_id
+        run: |
+          gpg_id=`gpg --list-keys|sed -n 4p|awk '{print $1}'`
+          echo "::set-output name=GPG_ID::$gpg_id"
+      - name: get gpg email address
+        id: get_gpg_email
+        run: |
+          gpg_email=`gpg -k|grep uid|cut -d '<' -f 2-2|cut -d '>' -f 1-1`
+          echo "::set-output name=GPG_EMAIL::$gpg_email"
+      - name: get gpg_keygrip
+        id: get_gpg_keygrip
+        run: |
+          keygrip=`gpg -k --with-keygrip |sed -n 5p|cut -d '=' -f 2-2`
+          echo "::set-output name=GPG_KEYGRIP::$keygrip"
+      - name: gpg sign package
+        run: |
+          gpg --export -a '${{ steps.get_gpg_email.outputs.GPG_EMAIL }}' > key
+          rpm --import key
+          echo allow-preset-passphrase > ~/.gnupg/gpg-agent.conf
+          gpg-connect-agent reloadagent /bye
+          /usr/lib/gnupg/gpg-preset-passphrase -P '${{ secrets.GPG_PASSWORD }}' -c --preset ${{ steps.get_gpg_keygrip.outputs.GPG_KEYGRIP }}
+          rpmsign --addsign --key-id ${{ steps.get_gpg_id.outputs.GPG_ID}} *.rpm
+          rm key
+      - name: perist rpm
+        uses: actions/upload-artifact@v2
+        with:
+          name: redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm
+          path: redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm
 
