@@ -152,6 +152,6 @@ jobs:
       - name: perist rpm
         uses: actions/upload-artifact@v2
         with:
-          name: redis-tools-${{env.redisversion}}-rhel8-${{matrix.arch}}.rpm
-          path: *.rpm
+          name: redis-tools-${{env.redisversion}}-1.rhel8.${{matrix.arch}}.rpm
+          path: redis-tools-${{env.redisversion}}-1.rhel8.${{matrix.arch}}.rpm
 
