@@ -102,7 +102,7 @@ jobs:
     steps:
       - uses: ruby/setup-ruby@v1
         with:
-          ruvy-version: "${{env.rubyversion}}"
+          ruby-version: "${{env.rubyversion}}"
       - name: install python
         uses: actions/setup-python@v2
         with:
