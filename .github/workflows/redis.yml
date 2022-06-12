@@ -150,8 +150,6 @@ jobs:
           gpg --export -a '${{ steps.get_gpg_email.outputs.GPG_EMAIL }}' > key
           rpm --import key
           echo allow-preset-passphrase > ~/.gnupg/gpg-agent.conf
-          GPG_TTY=$(tty)
-          export GPG_TTY=$(tty)
           gpg-connect-agent reloadagent /bye
           /usr/lib/gnupg/gpg-preset-passphrase -P '${{ secrets.GPG_PASSWORD }}' -c --preset ${{ steps.get_gpg_keygrip.outputs.GPG_KEYGRIP }}
           rpmsign --addsign --key-id ${{ steps.get_gpg_id.outputs.GPG_ID}} *.rpm
@@ -175,8 +173,8 @@ jobs:
       - uses: actions/checkout@v2
       - name: install dependencies
         run: |
-          apt update -y
-          apt install -y gpg gnupg2 rpm
+          sudo apt update -y
+          sudo apt install -y gpg gnupg2 rpm
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "${{env.rubyversion}}"
@@ -220,8 +218,6 @@ jobs:
           gpg --export -a '${{ steps.get_gpg_email.outputs.GPG_EMAIL }}' > key
           rpm --import key
           echo allow-preset-passphrase > ~/.gnupg/gpg-agent.conf
-          GPG_TTY=$(tty)
-          export GPG_TTY
           gpg-connect-agent reloadagent /bye
           /usr/lib/gnupg/gpg-preset-passphrase -P '${{ secrets.GPG_PASSWORD }}' -c --preset ${{ steps.get_gpg_keygrip.outputs.GPG_KEYGRIP }}
           rpmsign --addsign --key-id ${{ steps.get_gpg_id.outputs.GPG_ID}} *.rpm
