@@ -93,7 +93,7 @@ jobs:
             redis/src/redis-cli
 
   package-rhel7:
-    name: Package ${{matrix.osnick}}
+    name: Package RHEL7
     runs-on: ubuntu-latest
     needs: ["rhel7"]
     env:
@@ -146,6 +146,8 @@ jobs:
           gpg --export -a '${{ steps.get_gpg_email.outputs.GPG_EMAIL }}' > key
           rpm --import key
           echo allow-preset-passphrase > ~/.gnupg/gpg-agent.conf
+          GPG_TTY=$(tty)
+          export GPG_TTY=$(tty)
           gpg-connect-agent reloadagent /bye
           /usr/lib/gnupg/gpg-preset-passphrase -P '${{ secrets.GPG_PASSWORD }}' -c --preset ${{ steps.get_gpg_keygrip.outputs.GPG_KEYGRIP }}
           rpmsign --addsign --key-id ${{ steps.get_gpg_id.outputs.GPG_ID}} *.rpm
@@ -157,7 +159,7 @@ jobs:
           path: redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm
 
   package-rhel8:
-    name: Package ${{matrix.osnick}}
+    name: Package RHEL8
     runs-on: ubuntu-latest
     needs: ["rhel8"]
     env:
@@ -210,6 +212,8 @@ jobs:
           gpg --export -a '${{ steps.get_gpg_email.outputs.GPG_EMAIL }}' > key
           rpm --import key
           echo allow-preset-passphrase > ~/.gnupg/gpg-agent.conf
+          GPG_TTY=$(tty)
+          export GPG_TTY
           gpg-connect-agent reloadagent /bye
           /usr/lib/gnupg/gpg-preset-passphrase -P '${{ secrets.GPG_PASSWORD }}' -c --preset ${{ steps.get_gpg_keygrip.outputs.GPG_KEYGRIP }}
           rpmsign --addsign --key-id ${{ steps.get_gpg_id.outputs.GPG_ID}} *.rpm
