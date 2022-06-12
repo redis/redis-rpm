@@ -16,7 +16,7 @@ env:
   pythonversion: 3.9
   rubyversion: 2.7.2
   fpmversion: 1.14.1
-  redisversion: 7.0.1
+  redisversion: 7.0.2
 
 jobs:
 
