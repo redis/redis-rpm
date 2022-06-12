@@ -103,6 +103,10 @@ jobs:
         arch: ["x86_64"]
     steps:
       - uses: actions/checkout@v2
+      - name: install dependencies
+        run: |
+          apt update
+          apt install -y gpg gnupg2 rpm
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "${{env.rubyversion}}"
@@ -169,6 +173,10 @@ jobs:
         arch: ["x86_64"]
     steps:
       - uses: actions/checkout@v2
+      - name: install dependencies
+        run: |
+          apt update
+          apt install -y gpg gnupg2 rpm
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "${{env.rubyversion}}"
