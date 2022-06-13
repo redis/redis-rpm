@@ -125,7 +125,7 @@ jobs:
 
       - name: assemble and build the package
         run: |
-          bash package.sh ${{env.redisversion}} ${{matrix.arch}} ${{env.osnick}}
+          bash package.sh ${{env.redisversion}} ${{env.osnick}} ${{matrix.arch}}
       # gpg signing fun
       - name: install gpg key
         run: |
@@ -157,8 +157,8 @@ jobs:
       - name: perist rpm
         uses: actions/upload-artifact@v2
         with:
-          name: redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm
-          path: redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm
+          name: redis-tools-${{env.redisversion}}-1.${{env.osnick}}.${{matrix.arch}}.rpm
+          path: redis-tools-${{env.redisversion}}-1.${{env.osnick}}.${{matrix.arch}}.rpm
       - uses: s3-actions/s3cmd@v1.1
         with:
           provider: aws
@@ -167,8 +167,8 @@ jobs:
           secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       - name: persist packages to s3
         run: |
-          s3cmd put -P redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm \
-             s3://redismodules/lab/25-packagingbase/redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm
+          s3cmd put -P redis-tools-${{env.redisversion}}-1.${{env.osnick}}.${{matrix.arch}}.rpm \
+             s3://redismodules/lab/25-packagingbase/redis-tools-${{env.redisversion}}-1.${{env.osnick}}.${{matrix.arch}}.rpm
 
   package-rhel8:
     name: Package RHEL8
@@ -203,7 +203,7 @@ jobs:
 
       - name: assemble and build the package
         run: |
-          bash package.sh ${{env.redisversion}} ${{matrix.arch}} ${{env.osnick}}
+          bash package.sh ${{env.redisversion}} ${{env.osnick}} ${{matrix.arch}}
       # gpg signing fun
       - name: install gpg key
         run: |
@@ -235,8 +235,8 @@ jobs:
       - name: perist rpm
         uses: actions/upload-artifact@v2
         with:
-          name: redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm
-          path: redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm
+          name: redis-tools-${{env.redisversion}}-1.${{env.osnick}}.${{matrix.arch}}.rpm
+          path: redis-tools-${{env.redisversion}}-1.${{env.osnick}}.${{matrix.arch}}.rpm
       - uses: s3-actions/s3cmd@v1.1
         with:
           provider: aws
@@ -245,5 +245,6 @@ jobs:
           secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       - name: persist packages to s3
         run: |
-          s3cmd put -P redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm \
-             s3://redismodules/lab/25-packagingbase/redis-tools-${{env.redisversion}}-1.${{matrix.arch}}.${{env.osnick}}.rpm
+          s3cmd put -P redis-tools-${{env.redisversion}}-1.${{env.osnick}}.${{matrix.arch}}.rpm \
+             s3://redismodules/lab/25-packagingbase/redis-tools-${{env.redisversion}}-1.${{env.osnick}}.${{matrix.arch}}.rpm
+
