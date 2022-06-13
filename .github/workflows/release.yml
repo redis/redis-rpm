@@ -51,6 +51,6 @@ jobs:
 
       - name: update packages and publish upstream
         run: |
-          createrepo --update s3uploads/
+          createrepo s3uploads/
           s3cmd --access_key=${{secrets.PACKAGES_AWS_ACCESS_KEY_ID}} --secret_key=${{secrets.PACKAGES_AWS_SECRET_ACCESS_KEY}} \
             sync --acl-public s3uploads/* s3://${{ env.s3publicreponame }}/rpm/${{ matrix.osnick }}/
