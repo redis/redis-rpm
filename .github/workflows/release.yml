@@ -9,8 +9,8 @@ env:
   pythonversion: 3.9
   rubyversion: 2.7.2
 
-  # Path to the S3 bucket containing our pre-build packages
-  s3root: s3://redismodules/lab/25-packagingbase/
+  # Path to the S3 bucket containing our pre-build packages (cannot end in /)
+  s3root: s3://redismodules/lab/25-packagingbase
 
   # Name of the s3 bucket within the account, used to publish our feeds
   # eg: redismodules
