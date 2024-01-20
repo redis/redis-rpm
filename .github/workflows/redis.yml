@@ -134,17 +134,17 @@ jobs:
         id: get_gpg_id
         run: |
           gpg_id=`gpg --list-keys|sed -n 4p|awk '{print $1}'`
-          echo "::set-output name=GPG_ID::$gpg_id"
+          echo "GPG_ID=$gpg_id" >> "$GITHUB_OUTPUT"
       - name: get gpg email address
         id: get_gpg_email
         run: |
           gpg_email=`gpg -k|grep uid|cut -d '<' -f 2-2|cut -d '>' -f 1-1`
-          echo "::set-output name=GPG_EMAIL::$gpg_email"
+          echo "GPG_EMAIL=$gpg_email" >> "$GITHUB_OUTPUT"
       - name: get gpg_keygrip
         id: get_gpg_keygrip
         run: |
           keygrip=`gpg -k --with-keygrip |sed -n 5p|cut -d '=' -f 2-2`
-          echo "::set-output name=GPG_KEYGRIP::$keygrip"
+          echo "GPG_KEYGRIP=$keygrip" >> "$GITHUB_OUTPUT"
       - name: gpg sign package
         run: |
           gpg --export -a '${{ steps.get_gpg_email.outputs.GPG_EMAIL }}' > key
@@ -212,17 +212,17 @@ jobs:
         id: get_gpg_id
         run: |
           gpg_id=`gpg --list-keys|sed -n 4p|awk '{print $1}'`
-          echo "::set-output name=GPG_ID::$gpg_id"
+          echo "GPG_ID=$gpg_id" >> "$GITHUB_OUTPUT"
       - name: get gpg email address
         id: get_gpg_email
         run: |
           gpg_email=`gpg -k|grep uid|cut -d '<' -f 2-2|cut -d '>' -f 1-1`
-          echo "::set-output name=GPG_EMAIL::$gpg_email"
+          echo "GPG_EMAIL=$gpg_email" >> "$GITHUB_OUTPUT"
       - name: get gpg_keygrip
         id: get_gpg_keygrip
         run: |
           keygrip=`gpg -k --with-keygrip |sed -n 5p|cut -d '=' -f 2-2`
-          echo "::set-output name=GPG_KEYGRIP::$keygrip"
+          echo "GPG_KEYGRIP=$keygrip" >> "$GITHUB_OUTPUT"
       - name: gpg sign package
         run: |
           gpg --export -a '${{ steps.get_gpg_email.outputs.GPG_EMAIL }}' > key
