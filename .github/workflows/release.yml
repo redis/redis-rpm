@@ -32,7 +32,7 @@ jobs:
         run: |
           realversion="${GITHUB_REF/refs\/tags\//}"
           realversion="${realversion//v/}"
-          echo "::set-output name=VERSION::$realversion"
+          echo "VERSION=$realversion" >> "$GITHUB_OUTPUT"
 
       - name: install dependencies
         run: |
