@@ -1,0 +1,46 @@
+FROM rockylinux:9
+
+# Install basic packages and development tools
+RUN echo '[goreleaser]\nname=GoReleaser\nbaseurl=https://repo.goreleaser.com/yum/\nenabled=1\ngpgcheck=0' > /etc/yum.repos.d/goreleaser.repo; \
+    dnf clean all && \
+    dnf makecache && \
+    dnf update -y && \
+    dnf install -y --nobest --skip-broken \
+    pkg-config \
+    xz \
+    wget \
+    which \
+    gcc-toolset-13-gcc \
+    gcc-toolset-13-gcc-c++ \
+    git \
+    make \
+    openssl \
+    openssl-devel \
+    python3 \
+    python3-pip \
+    python3-devel \
+    unzip \
+    rsync \
+    clang \
+    curl \
+    libtool \
+    automake \
+    autoconf \
+    jq; \
+    \
+    # Python venv
+    python3 -m venv /opt/venv; \
+    \
+    cp /opt/rh/gcc-toolset-13/enable /etc/profile.d/gcc-toolset-13.sh; \
+    echo "source /etc/profile.d/gcc-toolset-13.sh" >> /etc/bashrc
+
+# Install CMake
+COPY install/install_cmake.sh /tmp/
+RUN bash /tmp/install_cmake.sh
+
+# Set environment
+ENV PATH="/usr/local/bin:/opt/venv/bin:${PATH}"
+WORKDIR /build
+
+# Default command
+CMD ["/bin/bash"]
