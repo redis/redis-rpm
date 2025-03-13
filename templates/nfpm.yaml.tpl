@@ -8,6 +8,10 @@ maintainer: "Redis Labs <redis@redis.io>"
 description: "Redis is an in-memory database that persists on disk. The data model is key-value, but many different kind of values are supported: Strings, Lists, Sets, Sorted Sets, Hashes, Streams, HyperLogLogs, Bitmaps."
 homepage: "https://redis.io/"
 
+depends:
+  - policycoreutils # For restorecon
+  - policycoreutils-python-utils # For semanage
+
 contents:
   # Runtime directories
   - dst: /var/lib/redis
@@ -22,10 +26,16 @@ contents:
       mode: 0750
       owner: redis
       group: redis
-  - dst: /var/run/redis
+  - dst: /run/redis
     type: dir
     file_info:
       mode: 0750
+      owner: redis
+      group: redis
+  - dst: /run/redis/redis-server.pid
+    type: ghost
+    file_info:
+      mode: 0644
       owner: redis
       group: redis
 

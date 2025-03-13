@@ -26,7 +26,8 @@ RUN echo '[goreleaser]\nname=GoReleaser\nbaseurl=https://repo.goreleaser.com/yum
     libtool \
     automake \
     autoconf \
-    jq; \
+    jq \
+    systemd-devel; \
     \
     # Python venv
     python3 -m venv /opt/venv; \

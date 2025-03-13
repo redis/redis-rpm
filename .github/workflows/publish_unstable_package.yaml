@@ -9,7 +9,7 @@ on:
       - v*
 
 env:
-  VERSION: "8.0-m02"
+  VERSION: "8.0-m03"
 
 jobs:
   build-containers:
@@ -56,10 +56,10 @@ jobs:
           export INSTALL_RUST_TOOLCHAIN=yes
           export DISABLE_WERRORS=yes
           export BUILD_TLS=yes
+          export USE_SYSTEMD=yes
 
           # Download and extract Redis source
           curl -L "https://github.com/redis/redis/archive/refs/tags/${{ env.VERSION }}.tar.gz" -o redis.tar.gz
-          curl -L "https://github.com/redis/redis/archive/refs/tags/8.0-m02.tar.gz" -o redis.tar.gz
           tar xzf redis.tar.gz
           cd redis-${{ env.VERSION }}
 

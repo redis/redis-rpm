@@ -28,7 +28,8 @@ RUN dnf install -y --nobest --skip-broken \
     libtool \
     automake \
     autoconf \
-    jq; \
+    jq \
+    systemd-devel; \
     \
     # Python venv
     python3.11 -m venv /opt/venv; \
