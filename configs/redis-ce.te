@@ -1,0 +1,13 @@
+module redis-ce 1.0;
+
+require {
+    type init_t;
+    type redis_t;
+    type redis_log_t;
+    class process2 nnp_transition;
+    class dir add_name;
+}
+
+#============= init_t ==============
+allow init_t redis_t:process2 nnp_transition;
+allow init_t redis_log_t:dir add_name;

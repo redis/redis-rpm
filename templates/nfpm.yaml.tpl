@@ -8,9 +8,17 @@ maintainer: "Redis Labs <redis@redis.io>"
 description: "Redis is an in-memory database that persists on disk. The data model is key-value, but many different kind of values are supported: Strings, Lists, Sets, Sorted Sets, Hashes, Streams, HyperLogLogs, Bitmaps."
 homepage: "https://redis.io/"
 
-depends:
-  - policycoreutils # For restorecon
-  - policycoreutils-python-utils # For semanage
+replaces:
+  - redis
+  - redis-server
+  - redis-tools
+  - redis-cli
+
+provides:
+  - redis
+  - redis-server
+  - redis-tools
+  - redis-cli
 
 contents:
   # Runtime directories
@@ -94,6 +102,12 @@ contents:
       mode: 0640
       owner: redis
       group: redis
+  - src: ./configs/redis-ce.te
+    dst: /usr/share/selinux/packages/redis-ce.te
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
 
   # Systemd service file
   - src: ./configs/redis.service

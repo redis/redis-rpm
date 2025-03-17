@@ -1,56 +1,13 @@
 #!/bin/bash
 
-# Check if SELinux is enabled and the necessary commands are available
-if [ "$(getenforce 2>/dev/null)" = "Enforcing" ] && command -v semanage &>/dev/null && command -v restorecon &>/dev/null; then
-    #
-    # SELinux configuration
-    # Note: These commands set the correct file contexts for Redis files
-    #
-    # SELinux is enforcing and commands are available, proceed with context setup
-    echo "Setting up SELinux contexts for Redis..."
+# Install SELinux policy module if SELinux is enforcing
+if command -v checkmodule &> /dev/null && command -v semodule_package &> /dev/null; then
+    # Compile policy module
+    checkmodule -M -m /usr/share/selinux/packages/redis-ce.te -o /usr/share/selinux/packages/redis-ce.mod
+    semodule_package -m /usr/share/selinux/packages/redis-ce.mod -o /usr/share/selinux/packages/redis-ce.pp
 
-    # Library files
-    semanage fcontext -a -t lib_t "/usr/lib/redis(/.*)?"
-    semanage fcontext -a -t lib_t "/usr/lib/redis/modules(/.*)?"
-
-    # Binary files
-    semanage fcontext -a -t bin_t "/usr/bin/redis(/.*)?"
-
-    # Log files
-    semanage fcontext -a -t var_log_t "/var/log/redis(/.*)?"
-    semanage fcontext -a -t var_log_t "/var/log/redis/redis-server.log"
-    semanage fcontext -a -t var_log_t "/var/log/redis/redis-sentinel.log"
-
-    # Configuration files
-    semanage fcontext -a -t etc_t "/etc/redis(/.*)?"
-    semanage fcontext -a -t etc_t "/etc/redis/redis.conf"
-    semanage fcontext -a -t etc_t "/etc/redis/sentinel.conf"
-
-    # Runtime files - Using /var/run instead of /run due to SELinux equivalency rules
-    semanage fcontext -a -t var_run_t "/var/run/redis(/.*)?"
-    semanage fcontext -a -t var_run_t "/var/run/redis/redis-server.pid"
-
-    # Data directory
-    semanage fcontext -a -t var_lib_t "/var/lib/redis(/.*)?"
-
-    # Service file - Systemd unit file
-    semanage fcontext -a -t systemd_unit_file_t "/usr/lib/systemd/system/redis.service"
-
-    #
-    # Apply all SELinux contexts
-    # The -v flag makes the commands verbose
-    # The -R flag applies recursively to directories
-    #
-
-    restorecon -Rv /usr/lib/redis
-    restorecon -Rv /usr/bin/redis*
-    restorecon -Rv /var/log/redis
-    restorecon -Rv /etc/redis
-    restorecon -Rv /var/run/redis
-    restorecon -Rv /var/lib/redis
-    restorecon -v /usr/lib/systemd/system/redis.service
-else
-    echo "SELinux is not enforcing or semanage/restorecon commands are not available. Skipping SELinux setup."
+    # Install or update the policy module
+    semodule -i /usr/share/selinux/packages/redis-ce.pp
 fi
 
 #
