@@ -9,7 +9,7 @@ on:
       - v*
 
 env:
-  VERSION: "8.0-m03"
+  VERSION: "8.0-m04"
 
 jobs:
   build-containers:
