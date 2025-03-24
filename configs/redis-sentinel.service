@@ -30,4 +30,4 @@ ReadWriteDirectories=-/etc/redis
 
 [Install]
 WantedBy=multi-user.target
-Alias=sentinel.service
+Alias=redis-sentinel.service
