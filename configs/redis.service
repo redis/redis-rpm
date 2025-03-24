@@ -6,8 +6,6 @@ Documentation=http://redis.io/documentation
 [Service]
 Type=notify
 ExecStart=/usr/bin/redis-server /etc/redis/redis.conf
-ExecStop=/bin/kill -s TERM $MAINPID
-PIDFile=/run/redis/redis-server.pid
 TimeoutStopSec=0
 Restart=always
 User=redis
@@ -26,7 +24,7 @@ ReadWriteDirectories=-/var/log/redis
 ReadWriteDirectories=-/run/redis
 
 NoNewPrivileges=true
-CapabilityBoundingSet=CAP_SETGID CAP_SETUID CAP_SYS_RESOURCE
+CapabilityBoundingSet=CAP_SYS_RESOURCE
 ProtectSystem=true
 ReadWriteDirectories=-/etc/redis
 
