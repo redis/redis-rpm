@@ -109,9 +109,18 @@ contents:
       owner: root
       group: root
 
-  # Systemd service file
+  # Systemd service file for redis-server
   - src: ./configs/redis.service
     dst: /usr/lib/systemd/system/redis.service
+    type: config
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+
+  # Systemd service file for redis-sentinel
+  - src: ./configs/redis-sentinel.service
+    dst: /usr/lib/systemd/system/redis-sentinel.service
     type: config
     file_info:
       mode: 0644
