@@ -10,6 +10,11 @@ if command -v checkmodule &> /dev/null && command -v semodule_package &> /dev/nu
     semodule -i /usr/share/selinux/packages/redis-ce.pp
 fi
 
+# Allow writing to /etc/redis/sentinel.conf* for redis-sentinel
+if command -v semanage &> /dev/null; then
+    semanage fcontext -a -t redis_conf_t '/etc/redis/sentinel.conf*'
+fi
+
 #
 # Handle service setup
 # $1 will be 1 for initial install and 2 for upgrade
