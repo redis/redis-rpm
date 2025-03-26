@@ -88,6 +88,12 @@ contents:
       mode: 0750
       owner: redis
       group: redis
+  - dst: /etc/redis/sentinel
+    type: dir
+    file_info:
+      mode: 0750
+      owner: redis
+      group: redis
   - src: ./configs/redis.conf
     dst: /etc/redis/redis.conf
     type: config|noreplace
@@ -96,7 +102,7 @@ contents:
       owner: redis
       group: redis
   - src: ./configs/sentinel.conf
-    dst: /etc/redis/sentinel.conf
+    dst: /etc/redis/sentinel/sentinel.conf
     type: config|noreplace
     file_info:
       mode: 0640

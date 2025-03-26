@@ -10,10 +10,10 @@ if command -v checkmodule &> /dev/null && command -v semodule_package &> /dev/nu
     semodule -i /usr/share/selinux/packages/redis-ce.pp
 fi
 
-# Allow writing to /etc/redis/sentinel.conf* for redis-sentinel
+# Allow writing to /etc/redis/sentinel/ for redis-sentinel
 if command -v semanage &> /dev/null; then
-    semanage fcontext -a -t redis_conf_t '/etc/redis/sentinel.conf*'
-    restorecon '/etc/redis/sentinel.conf*'
+    semanage fcontext -a -t redis_conf_t '/etc/redis/sentinel'
+    restorecon '/etc/redis/sentinel'
 fi
 
 #

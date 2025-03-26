@@ -5,8 +5,6 @@ Documentation=http://redis.io/documentation
 
 [Service]
 Type=notify
-# Try to restore context for sentinel.conf* as sentinel needs to write into these files
-ExecStartPre=-/bin/sh -c "[ -x /sbin/restorecon ] && /sbin/restorecon '/etc/redis/sentinel.conf*'"
 ExecStart=/usr/bin/redis-sentinel /etc/redis/sentinel.conf
 TimeoutStopSec=0
 Restart=always
@@ -24,8 +22,6 @@ ReadOnlyDirectories=/
 ReadWriteDirectories=-/var/lib/redis
 ReadWriteDirectories=-/var/log/redis
 ReadWriteDirectories=-/run/sentinel
-# To run restorecon in ExecStartPre
-PermissionsStartOnly=yes
 
 NoNewPrivileges=true
 CapabilityBoundingSet=CAP_SYS_RESOURCE
