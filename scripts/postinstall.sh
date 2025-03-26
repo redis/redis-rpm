@@ -4,17 +4,15 @@
 if command -v checkmodule &> /dev/null && command -v semodule_package &> /dev/null; then
     # Compile policy module
     checkmodule -M -m /usr/share/selinux/packages/redis-ce.te -o /usr/share/selinux/packages/redis-ce.mod
-    semodule_package -m /usr/share/selinux/packages/redis-ce.mod -o /usr/share/selinux/packages/redis-ce.pp
+    semodule_package -m /usr/share/selinux/packages/redis-ce.mod -o /usr/share/selinux/packages/redis-ce.pp -f /usr/share/selinux/packages/redis-ce.fc
 
     # Install or update the policy module
     semodule -i /usr/share/selinux/packages/redis-ce.pp
 fi
 
 # Allow writing to /etc/redis/sentinel/ for redis-sentinel
-if command -v semanage &> /dev/null && command -v restorecon &> /dev/null; then
-    semanage fcontext -a -t redis_conf_t '/etc/redis/sentinel'
-    semanage fcontext -a -t redis_conf_t '/etc/redis/sentinel/sentinel.conf'
-    restorecon '/etc/redis/sentinel' '/etc/redis/sentinel/sentinel.conf'
+if command -v chcon &> /dev/null; then
+    chcon -t redis_conf_t '/etc/redis/sentinel' '/etc/redis/sentinel/sentinel.conf'
 fi
 
 #

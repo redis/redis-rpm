@@ -114,6 +114,12 @@ contents:
       mode: 0644
       owner: root
       group: root
+  - src: ./configs/redis-ce.fc
+    dst: /usr/share/selinux/packages/redis-ce.fc
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
 
   # Systemd service file for redis-server
   - src: ./configs/redis.service

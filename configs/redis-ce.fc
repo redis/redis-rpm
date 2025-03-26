@@ -1,0 +1,2 @@
+/etc/redis/sentinel     -d      system_u:object_r:redis_conf_t:s0
+/etc/redis/sentinel.conf     --      system_u:object_r:redis_conf_t:s0
