@@ -11,7 +11,7 @@ if command -v checkmodule &> /dev/null && command -v semodule_package &> /dev/nu
 fi
 
 # Allow writing to /etc/redis/sentinel/ for redis-sentinel
-if command -v semanage &> /dev/null; then
+if command -v semanage &> /dev/null && command -v restorecon &> /dev/null; then
     semanage fcontext -a -t redis_conf_t '/etc/redis/sentinel'
     semanage fcontext -a -t redis_conf_t '/etc/redis/sentinel/sentinel.conf'
     restorecon '/etc/redis/sentinel' '/etc/redis/sentinel/sentinel.conf'
