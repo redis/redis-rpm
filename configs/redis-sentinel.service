@@ -5,7 +5,7 @@ Documentation=http://redis.io/documentation
 
 [Service]
 Type=notify
-ExecStart=/usr/bin/redis-sentinel /etc/redis/sentinel.conf
+ExecStart=/usr/bin/redis-sentinel /etc/redis/sentinel/sentinel.conf
 TimeoutStopSec=0
 Restart=always
 User=redis

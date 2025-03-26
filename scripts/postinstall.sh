@@ -13,7 +13,8 @@ fi
 # Allow writing to /etc/redis/sentinel/ for redis-sentinel
 if command -v semanage &> /dev/null; then
     semanage fcontext -a -t redis_conf_t '/etc/redis/sentinel'
-    restorecon '/etc/redis/sentinel'
+    semanage fcontext -a -t redis_conf_t '/etc/redis/sentinel/sentinel.conf'
+    restorecon '/etc/redis/sentinel' '/etc/redis/sentinel/sentinel.conf'
 fi
 
 #
