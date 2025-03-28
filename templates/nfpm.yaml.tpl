@@ -1,4 +1,4 @@
-name: "Redis"
+name: "redis"
 arch: "${ARCH}"
 platform: linux
 version: "${VERSION}"
@@ -19,6 +19,10 @@ provides:
   - redis-server
   - redis-tools
   - redis-cli
+
+recommends:
+  - policycoreutils
+  - checkpolicy
 
 contents:
   # Runtime directories
