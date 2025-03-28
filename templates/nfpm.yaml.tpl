@@ -1,4 +1,4 @@
-name: "Redis"
+name: "redis"
 arch: "${ARCH}"
 platform: linux
 version: "${VERSION}"
@@ -19,6 +19,10 @@ provides:
   - redis-server
   - redis-tools
   - redis-cli
+
+recommends:
+  - policycoreutils
+  - checkpolicy
 
 contents:
   # Runtime directories
@@ -88,6 +92,12 @@ contents:
       mode: 0750
       owner: redis
       group: redis
+  - dst: /etc/redis/sentinel
+    type: dir
+    file_info:
+      mode: 0750
+      owner: redis
+      group: redis
   - src: ./configs/redis.conf
     dst: /etc/redis/redis.conf
     type: config|noreplace
@@ -96,7 +106,7 @@ contents:
       owner: redis
       group: redis
   - src: ./configs/sentinel.conf
-    dst: /etc/redis/sentinel.conf
+    dst: /etc/redis/sentinel/sentinel.conf
     type: config|noreplace
     file_info:
       mode: 0640
@@ -108,10 +118,25 @@ contents:
       mode: 0644
       owner: root
       group: root
+  - src: ./configs/redis-ce.fc
+    dst: /usr/share/selinux/packages/redis-ce.fc
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
 
-  # Systemd service file
+  # Systemd service file for redis-server
   - src: ./configs/redis.service
     dst: /usr/lib/systemd/system/redis.service
+    type: config
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+
+  # Systemd service file for redis-sentinel
+  - src: ./configs/redis-sentinel.service
+    dst: /usr/lib/systemd/system/redis-sentinel.service
     type: config
     file_info:
       mode: 0644

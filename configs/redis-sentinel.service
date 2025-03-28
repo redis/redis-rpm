@@ -5,12 +5,12 @@ Documentation=http://redis.io/documentation
 
 [Service]
 Type=notify
-ExecStart=/usr/bin/redis-server /etc/redis/redis.conf
+ExecStart=/usr/bin/redis-sentinel /etc/redis/sentinel/sentinel.conf
 TimeoutStopSec=0
 Restart=always
 User=redis
 Group=redis
-RuntimeDirectory=redis
+RuntimeDirectory=sentinel
 RuntimeDirectoryMode=2755
 
 UMask=007
@@ -21,7 +21,7 @@ ProtectHome=yes
 ReadOnlyDirectories=/
 ReadWriteDirectories=-/var/lib/redis
 ReadWriteDirectories=-/var/log/redis
-ReadWriteDirectories=-/run/redis
+ReadWriteDirectories=-/run/sentinel
 
 NoNewPrivileges=true
 CapabilityBoundingSet=CAP_SYS_RESOURCE
@@ -30,4 +30,4 @@ ReadWriteDirectories=-/etc/redis
 
 [Install]
 WantedBy=multi-user.target
-Alias=redis.service
+Alias=redis-sentinel.service
