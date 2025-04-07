@@ -9,7 +9,7 @@ on:
       - v*
 
 env:
-  VERSION: "8.0-m04"
+  VERSION: "8.0-rc1"
 
 jobs:
   build-containers:
@@ -262,6 +262,7 @@ jobs:
           role-to-assume: ${{ secrets.RPM_S3_IAM_ARN }}
 
       - name: Update packages and publish to private repo
+        if: github.ref == 'refs/heads/main'
         env:
           RPM_S3_BUCKET: ${{ secrets.RPM_S3_BUCKET }}
           RPM_S3_REGION: ${{ secrets.RPM_S3_REGION }}
