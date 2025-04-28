@@ -11,7 +11,7 @@ on:
       - v*
 
 env:
-  VERSION: "8.0-rc1"
+  VERSION: "8.0-rc2-int"
 
 jobs:
   build-containers:
