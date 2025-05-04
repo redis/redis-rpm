@@ -2,8 +2,6 @@ This repository creates the redis-tools rpm, uploading it to our S3 RPM feed.
 
 ## Redis Open Source - Install using RPM Package Manager
 
-To install the latest version of Redis Community Edition using RPM Package Manager, please use the following command:
-
 1. Create the file `/etc/yum.repos.d/redis.repo` with the following contents.
 
   - For Rocky Linux 9 / AlmaLinux 9 / etc...
