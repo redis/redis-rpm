@@ -3,15 +3,13 @@ name: Build Redis CE RPM
 on:
   pull_request:
     branches:
-      - main
+      - release/8.0
   push:
     branches:
-      - main
-    tags:
-      - v*
+      - release/8.0
 
 env:
-  VERSION: "8.0-rc2-int"
+  VERSION: "8.0.0"
 
 jobs:
   build-containers:
@@ -264,7 +262,7 @@ jobs:
           role-to-assume: ${{ secrets.RPM_S3_IAM_ARN }}
 
       - name: Update packages and publish to private repo
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/release/8.0'
         env:
           RPM_S3_BUCKET: ${{ secrets.RPM_S3_BUCKET }}
           RPM_S3_REGION: ${{ secrets.RPM_S3_REGION }}
@@ -274,8 +272,3 @@ jobs:
           createrepo_c s3uploads/
           s3cmd sync --acl-public --region=${{ env.RPM_S3_REGION }} s3uploads/* s3://${{ env.RPM_S3_BUCKET }}/rpm/${{ matrix.os.name }}${{ matrix.os.version }}/
 
-      - name: Publish upstream
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          s3cmd --access_key=${{secrets.PACKAGES_AWS_ACCESS_KEY_ID}} --secret_key=${{secrets.PACKAGES_AWS_SECRET_ACCESS_KEY}} \
-            sync --acl-public s3uploads/* s3://${{ env.s3publicreponame }}/rpm/${{ matrix.os.name }}/
