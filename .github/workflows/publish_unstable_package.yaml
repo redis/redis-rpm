@@ -237,6 +237,7 @@ jobs:
   upload-rpm:
     name: Upload RPM to S3
     needs: test-rpm
+    if: github.ref == 'refs/heads/release/8.0'
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -261,14 +262,56 @@ jobs:
           aws-region: ${{ secrets.RPM_S3_REGION }}
           role-to-assume: ${{ secrets.RPM_S3_IAM_ARN }}
 
+      - name: Install GPG key
+        run: |
+          echo -e "${{ secrets.GPG_KEY }}" | gpg --batch --import
+
+      - name: Get GPG key ID
+        id: gpg_id
+        run: |
+          GPG_ID=$(gpg --list-keys --with-colons | grep pub | cut -d':' -f5)
+          echo "GPG_ID=$GPG_ID" >> $GITHUB_OUTPUT
+
+      - name: Get GPG email
+        id: gpg_email
+        run: |
+          GPG_EMAIL=$(gpg --list-keys --with-colons | grep uid | head -n1 | cut -d':' -f10 | sed 's/.*<\(.*\)>.*/\1/')
+          echo "GPG_EMAIL=$GPG_EMAIL" >> $GITHUB_OUTPUT
+
+      - name: Get GPG keygrip
+        id: gpg_keygrip
+        run: |
+          KEYGRIP=$(gpg --list-keys --with-keygrip | grep Keygrip | head -n1 | awk '{print $3}')
+          echo "KEYGRIP=$KEYGRIP" >> $GITHUB_OUTPUT
+
+      - name: Sign RPM packages
+        run: |
+          # Install required tools
+          sudo apt-get update
+          sudo apt-get install -y rpm createrepo-c s3cmd
+
+          # Export and import GPG key for RPM
+          gpg --export -a "${{ steps.gpg_email.outputs.GPG_EMAIL }}" > rpm-gpg-key.asc
+          sudo rpm --import rpm-gpg-key.asc
+
+          # Configure GPG agent for signing
+          mkdir -p ~/.gnupg
+          echo "allow-preset-passphrase" > ~/.gnupg/gpg-agent.conf
+          gpg-connect-agent reloadagent /bye
+          
+          # Preset passphrase for non-interactive signing
+          /usr/lib/gnupg/gpg-preset-passphrase -P "${{ secrets.GPG_PASSWORD }}" -c "${{ steps.gpg_keygrip.outputs.KEYGRIP }}"
+          
+          # Sign all RPM packages
+          cd s3uploads
+          find . -name "*.rpm" -exec rpmsign --addsign --key-id "${{ steps.gpg_id.outputs.GPG_ID }}" {} \;
+          
+          # Create repository metadata with signatures
+          createrepo_c .
+
       - name: Update packages and publish to private repo
-        if: github.ref == 'refs/heads/release/8.0'
         env:
           RPM_S3_BUCKET: ${{ secrets.RPM_S3_BUCKET }}
           RPM_S3_REGION: ${{ secrets.RPM_S3_REGION }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y createrepo-c s3cmd
-          createrepo_c s3uploads/
           s3cmd sync --acl-public --region=${{ env.RPM_S3_REGION }} s3uploads/* s3://${{ env.RPM_S3_BUCKET }}/rpm/${{ matrix.os.name }}${{ matrix.os.version }}/
-
