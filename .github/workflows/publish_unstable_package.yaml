@@ -312,23 +312,14 @@ jobs:
           KEYGRIP=$(gpg --list-keys --with-keygrip | grep Keygrip | head -n1 | awk '{print $3}')
           echo "KEYGRIP=$KEYGRIP" >> $GITHUB_OUTPUT
 
-      - name: Prepare repository structure
-        run: |
-          # Create directory for the final repository
-          mkdir -p s3uploads/${{ matrix.os.name }}${{ matrix.os.version }}
-
-          # Copy all RPMs from both architectures to the repository directory
-          cp -r combined-rpms/rpms/${{ matrix.os.name }}${{ matrix.os.version }}/* s3uploads/${{ matrix.os.name }}${{ matrix.os.version }}/
-
-          # List all files to verify
-          find s3uploads -type f -name "*.rpm" | sort
-
-      - name: Sign RPM packages
+      - name: Install required tools
         run: |
           # Install required tools
           sudo apt-get update
           sudo apt-get install -y rpm createrepo-c s3cmd
 
+      - name: Sign RPM packages
+        run: |
           # Export and import GPG key for RPM
           gpg --export -a "${{ steps.gpg_email.outputs.GPG_EMAIL }}" > rpm-gpg-key.asc
           sudo rpm --import rpm-gpg-key.asc
@@ -341,10 +332,35 @@ jobs:
           # Preset passphrase for non-interactive signing
           /usr/lib/gnupg/gpg-preset-passphrase -P "${{ secrets.GPG_PASSWORD }}" -c "${{ steps.gpg_keygrip.outputs.KEYGRIP }}"
 
-          # Sign all RPM packages
-          find s3uploads -name "*.rpm" -exec rpmsign --addsign --key-id "${{ steps.gpg_id.outputs.GPG_ID }}" {} \;
+          # Sign new RPM packages before copying them to the final repository
+          echo "Signing new RPM packages..."
+          find combined-rpms/rpms/${{ matrix.os.name }}${{ matrix.os.version }} -name "*.rpm" -exec rpmsign --addsign --key-id "${{ steps.gpg_id.outputs.GPG_ID }}" {} \;
+
+          echo "Signed packages:"
+          find combined-rpms/rpms/${{ matrix.os.name }}${{ matrix.os.version }} -name "*.rpm" | sort
+
+      - name: Prepare repository structure
+        env:
+          RPM_S3_BUCKET: ${{ secrets.RPM_S3_BUCKET }}
+          RPM_S3_REGION: ${{ secrets.RPM_S3_REGION }}
+        run: |
+          # Create directory for the final repository
+          mkdir -p s3uploads/${{ matrix.os.name }}${{ matrix.os.version }}
+
+          # First download existing packages from S3 to ensure we include them in the repo metadata
+          echo "Downloading existing packages from S3..."
+          s3cmd sync --region=${{ env.RPM_S3_REGION }} s3://${{ env.RPM_S3_BUCKET }}/rpm/${{ matrix.os.name }}${{ matrix.os.version }}/ s3uploads/${{ matrix.os.name }}${{ matrix.os.version }}/
+
+          # Copy all signed RPMs from both architectures to the repository directory
+          echo "Adding newly signed packages..."
+          cp -r combined-rpms/rpms/${{ matrix.os.name }}${{ matrix.os.version }}/* s3uploads/${{ matrix.os.name }}${{ matrix.os.version }}/
+
+          # List all files to verify
+          echo "All packages in repository:"
+          find s3uploads -type f -name "*.rpm" | sort
 
           # Create repository metadata with signatures for this OS version
+          echo "Generating repository metadata..."
           cd s3uploads/${{ matrix.os.name }}${{ matrix.os.version }}
           createrepo_c .
 
@@ -353,4 +369,8 @@ jobs:
           RPM_S3_BUCKET: ${{ secrets.RPM_S3_BUCKET }}
           RPM_S3_REGION: ${{ secrets.RPM_S3_REGION }}
         run: |
-          s3cmd sync --acl-public --region=${{ env.RPM_S3_REGION }} s3uploads/${{ matrix.os.name }}${{ matrix.os.version }}/* s3://${{ env.RPM_S3_BUCKET }}/rpm/${{ matrix.os.name }}${{ matrix.os.version }}/
+          # Use --no-delete-removed to ensure we don't delete any existing packages
+          echo "Uploading repository to S3..."
+          s3cmd sync --acl-public --no-delete-removed --region=${{ env.RPM_S3_REGION }} s3uploads/${{ matrix.os.name }}${{ matrix.os.version }}/* s3://${{ env.RPM_S3_BUCKET }}/rpm/${{ matrix.os.name }}${{ matrix.os.version }}/
+
+          echo "Repository update complete for ${{ matrix.os.name }}${{ matrix.os.version }}"
