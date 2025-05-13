@@ -334,10 +334,10 @@ jobs:
 
           # Sign new RPM packages before copying them to the final repository
           echo "Signing new RPM packages..."
-          find combined-rpms/rpms/${{ matrix.os.name }}${{ matrix.os.version }} -name "*.rpm" -exec rpmsign --addsign --key-id "${{ steps.gpg_id.outputs.GPG_ID }}" {} \;
+          find combined-rpms/${{ matrix.os.name }}${{ matrix.os.version }} -name "*.rpm" -exec rpmsign --addsign --key-id "${{ steps.gpg_id.outputs.GPG_ID }}" {} \;
 
           echo "Signed packages:"
-          find combined-rpms/rpms/${{ matrix.os.name }}${{ matrix.os.version }} -name "*.rpm" | sort
+          find combined-rpms/${{ matrix.os.name }}${{ matrix.os.version }} -name "*.rpm" | sort
 
       - name: Prepare repository structure
         env:
@@ -353,7 +353,7 @@ jobs:
 
           # Copy all signed RPMs from both architectures to the repository directory
           echo "Adding newly signed packages..."
-          cp -r combined-rpms/rpms/${{ matrix.os.name }}${{ matrix.os.version }}/* s3uploads/${{ matrix.os.name }}${{ matrix.os.version }}/
+          cp -r combined-rpms/${{ matrix.os.name }}${{ matrix.os.version }}/* s3uploads/${{ matrix.os.name }}${{ matrix.os.version }}/
 
           # List all files to verify
           echo "All packages in repository:"
