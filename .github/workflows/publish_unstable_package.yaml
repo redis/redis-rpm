@@ -39,7 +39,7 @@ jobs:
             version: 8
           - name: rockylinux
             version: 9
-    
+
     container:
       image: ghcr.io/${{ github.repository }}/builder:${{ matrix.os.name }}${{ matrix.os.version }}
       credentials:
@@ -102,11 +102,11 @@ jobs:
           - distro: quay.io/centos/centos
             distro_version: 8
         platform: [amd64, arm64]
-        distro: 
+        distro:
           - rockylinux
           - almalinux
           - quay.io/centos/centos
-        distro_version: 
+        distro_version:
           - 8
           - 9
 
@@ -129,7 +129,7 @@ jobs:
 
           # Download systemctl replacement first as .py file
           curl -L https://raw.githubusercontent.com/gdraheim/docker-systemctl-replacement/master/files/docker/systemctl3.py -o /usr/bin/systemctl3.py
-          
+
           # Handle Python interpreter path based on distribution
           if [ "${{ matrix.distro }}" = "quay.io/centos/centos" ] && [ "${{ matrix.distro_version }}" = "8" ]; then
             # CentOS 8 uses platform-python
@@ -138,10 +138,10 @@ jobs:
             # Other distributions use regular python3
             pythonpath="/usr/bin/python3"
           fi
-          
+
           echo "Using Python interpreter: $pythonpath"
           sed -i -e "s|/usr/bin/python3|$pythonpath|" /usr/bin/systemctl3.py
-          
+
           # Copy to final location after modification
           cp /usr/bin/systemctl3.py /usr/bin/systemctl
           chmod +x /usr/bin/systemctl
@@ -154,7 +154,7 @@ jobs:
         run: |
           sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
           sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
-  
+
       - name: Install RPM dependencies
         run: |
           dnf install -y ./rpm/*.rpm || true
@@ -165,7 +165,7 @@ jobs:
         run: |
           for i in {1..5}; do redis-cli ping &>/dev/null && break || echo "Waiting for Redis... $i" && sleep 1; done
           redis-cli info server || { echo "Cannot get server info"; exit 1; }
-      
+
       - name: Verify installed modules
         run: |
           modules=$(redis-cli module list)
@@ -234,13 +234,11 @@ jobs:
             exit 1
           fi
 
-  upload-rpm:
-    name: Upload RPM to S3
+  download-rpms:
+    name: Download RPM Artifacts
     needs: test-rpm
     if: github.ref == 'refs/heads/release/8.0'
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -254,7 +252,37 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: redis-${{ matrix.os.version }}-${{ matrix.platform }}-rpm
-          path: s3uploads
+          path: rpms/${{ matrix.os.name }}${{ matrix.os.version }}/${{ matrix.platform }}
+
+      - name: Upload RPM directory for further processing
+        uses: actions/upload-artifact@v4
+        with:
+          name: redis-${{ matrix.os.name }}${{ matrix.os.version }}-${{ matrix.platform }}-for-repo
+          path: rpms
+          retention-days: 1
+
+  upload-rpm:
+    name: Upload RPM to S3
+    needs: download-rpms
+    if: github.ref == 'refs/heads/release/8.0'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - name: rockylinux
+            version: 8
+          - name: rockylinux
+            version: 9
+    steps:
+      - name: Download all RPM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: redis-${{ matrix.os.name }}${{ matrix.os.version }}-*-for-repo
+          path: combined-rpms
+          merge-multiple: true
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -284,6 +312,17 @@ jobs:
           KEYGRIP=$(gpg --list-keys --with-keygrip | grep Keygrip | head -n1 | awk '{print $3}')
           echo "KEYGRIP=$KEYGRIP" >> $GITHUB_OUTPUT
 
+      - name: Prepare repository structure
+        run: |
+          # Create directory for the final repository
+          mkdir -p s3uploads/${{ matrix.os.name }}${{ matrix.os.version }}
+
+          # Copy all RPMs from both architectures to the repository directory
+          cp -r combined-rpms/rpms/${{ matrix.os.name }}${{ matrix.os.version }}/* s3uploads/${{ matrix.os.name }}${{ matrix.os.version }}/
+
+          # List all files to verify
+          find s3uploads -type f -name "*.rpm" | sort
+
       - name: Sign RPM packages
         run: |
           # Install required tools
@@ -298,15 +337,15 @@ jobs:
           mkdir -p ~/.gnupg
           echo "allow-preset-passphrase" > ~/.gnupg/gpg-agent.conf
           gpg-connect-agent reloadagent /bye
-          
+
           # Preset passphrase for non-interactive signing
           /usr/lib/gnupg/gpg-preset-passphrase -P "${{ secrets.GPG_PASSWORD }}" -c "${{ steps.gpg_keygrip.outputs.KEYGRIP }}"
-          
+
           # Sign all RPM packages
-          cd s3uploads
-          find . -name "*.rpm" -exec rpmsign --addsign --key-id "${{ steps.gpg_id.outputs.GPG_ID }}" {} \;
-          
-          # Create repository metadata with signatures
+          find s3uploads -name "*.rpm" -exec rpmsign --addsign --key-id "${{ steps.gpg_id.outputs.GPG_ID }}" {} \;
+
+          # Create repository metadata with signatures for this OS version
+          cd s3uploads/${{ matrix.os.name }}${{ matrix.os.version }}
           createrepo_c .
 
       - name: Update packages and publish to private repo
@@ -314,4 +353,4 @@ jobs:
           RPM_S3_BUCKET: ${{ secrets.RPM_S3_BUCKET }}
           RPM_S3_REGION: ${{ secrets.RPM_S3_REGION }}
         run: |
-          s3cmd sync --acl-public --region=${{ env.RPM_S3_REGION }} s3uploads/* s3://${{ env.RPM_S3_BUCKET }}/rpm/${{ matrix.os.name }}${{ matrix.os.version }}/
+          s3cmd sync --acl-public --region=${{ env.RPM_S3_REGION }} s3uploads/${{ matrix.os.name }}${{ matrix.os.version }}/* s3://${{ env.RPM_S3_BUCKET }}/rpm/${{ matrix.os.name }}${{ matrix.os.version }}/
