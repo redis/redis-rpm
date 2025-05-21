@@ -1,15 +1,15 @@
-name: Build Redis CE RPM
+name: Build Redis CE RPM (Unstable)
 
 on:
   pull_request:
     branches:
-      - release/8.0
+      - release/8.0 #Change this to 'unstable' branch once it'll be created. Change the PR to 'unstable'
   push:
     branches:
       - release/8.0
 
 env:
-  VERSION: "8.0.1"
+  VERSION: "unstable"
 
 jobs:
   build-containers:
@@ -58,10 +58,19 @@ jobs:
           export BUILD_TLS=yes
           export USE_SYSTEMD=yes
 
-          # Download and extract Redis source
-          curl -L "https://github.com/redis/redis/archive/refs/tags/${{ env.VERSION }}.tar.gz" -o redis.tar.gz
-          tar xzf redis.tar.gz
-          cd redis-${{ env.VERSION }}
+          # Clone Redis unstable branch instead of downloading release tarball
+          git clone --depth 1 https://github.com/redis/redis.git -b unstable
+          cd redis
+          
+          # Update module versions to use master branch
+          echo "Updating module versions to use master branch..."
+          for module in redisbloom redisearch redistimeseries redisjson; do
+            if [ -f "modules/${module}/Makefile" ]; then
+              echo "Updating ${module} to use master branch"
+              sed -i 's/MODULE_VERSION = .*/MODULE_VERSION = master/' "modules/${module}/Makefile"
+              cat "modules/${module}/Makefile" | grep "MODULE_VERSION"
+            fi
+          done
 
           # Build Redis
           make -j "$(nproc)" all
@@ -233,144 +242,3 @@ jobs:
             echo "ReJSON test failed: expected allkeys-lru, got $result"
             exit 1
           fi
-
-  download-rpms:
-    name: Download RPM Artifacts
-    needs: test-rpm
-    if: github.ref == 'refs/heads/release/8.0'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        platform: [amd64, arm64]
-        os:
-          - name: rockylinux
-            version: 8
-          - name: rockylinux
-            version: 9
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: redis-${{ matrix.os.version }}-${{ matrix.platform }}-rpm
-          path: rpms/${{ matrix.os.name }}${{ matrix.os.version }}/${{ matrix.platform }}
-
-      - name: Upload RPM directory for further processing
-        uses: actions/upload-artifact@v4
-        with:
-          name: redis-${{ matrix.os.name }}${{ matrix.os.version }}-${{ matrix.platform }}-for-repo
-          path: rpms
-          retention-days: 1
-
-  upload-rpm:
-    name: Upload RPM to S3
-    needs: download-rpms
-    if: github.ref == 'refs/heads/release/8.0'
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - name: rockylinux
-            version: 8
-          - name: rockylinux
-            version: 9
-    steps:
-      - name: Download all RPM artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: redis-${{ matrix.os.name }}${{ matrix.os.version }}-*-for-repo
-          path: combined-rpms
-          merge-multiple: true
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: ${{ secrets.RPM_S3_REGION }}
-          role-to-assume: ${{ secrets.RPM_S3_IAM_ARN }}
-
-      - name: Install GPG key
-        run: |
-          echo -e "${{ secrets.GPG_KEY }}" | gpg --batch --import
-
-      - name: Get GPG key ID
-        id: gpg_id
-        run: |
-          GPG_ID=$(gpg --list-keys --with-colons | grep pub | cut -d':' -f5)
-          echo "GPG_ID=$GPG_ID" >> $GITHUB_OUTPUT
-
-      - name: Get GPG email
-        id: gpg_email
-        run: |
-          GPG_EMAIL=$(gpg --list-keys --with-colons | grep uid | head -n1 | cut -d':' -f10 | sed 's/.*<\(.*\)>.*/\1/')
-          echo "GPG_EMAIL=$GPG_EMAIL" >> $GITHUB_OUTPUT
-
-      - name: Get GPG keygrip
-        id: gpg_keygrip
-        run: |
-          KEYGRIP=$(gpg --list-keys --with-keygrip | grep Keygrip | head -n1 | awk '{print $3}')
-          echo "KEYGRIP=$KEYGRIP" >> $GITHUB_OUTPUT
-
-      - name: Install required tools
-        run: |
-          # Install required tools
-          sudo apt-get update
-          sudo apt-get install -y rpm createrepo-c s3cmd
-
-      - name: Sign RPM packages
-        run: |
-          # Export and import GPG key for RPM
-          gpg --export -a "${{ steps.gpg_email.outputs.GPG_EMAIL }}" > rpm-gpg-key.asc
-          sudo rpm --import rpm-gpg-key.asc
-
-          # Configure GPG agent for signing
-          mkdir -p ~/.gnupg
-          echo "allow-preset-passphrase" > ~/.gnupg/gpg-agent.conf
-          gpg-connect-agent reloadagent /bye
-
-          # Preset passphrase for non-interactive signing
-          /usr/lib/gnupg/gpg-preset-passphrase -P "${{ secrets.GPG_PASSWORD }}" -c "${{ steps.gpg_keygrip.outputs.KEYGRIP }}"
-
-          # Sign new RPM packages before copying them to the final repository
-          echo "Signing new RPM packages..."
-          find combined-rpms/${{ matrix.os.name }}${{ matrix.os.version }} -name "*.rpm" -exec rpmsign --addsign --key-id "${{ steps.gpg_id.outputs.GPG_ID }}" {} \;
-
-          echo "Signed packages:"
-          find combined-rpms/${{ matrix.os.name }}${{ matrix.os.version }} -name "*.rpm" | sort
-
-      - name: Prepare repository structure
-        env:
-          RPM_S3_BUCKET: ${{ secrets.RPM_S3_BUCKET }}
-          RPM_S3_REGION: ${{ secrets.RPM_S3_REGION }}
-        run: |
-          # Create directory for the final repository
-          mkdir -p s3uploads/${{ matrix.os.name }}${{ matrix.os.version }}
-
-          # First download existing packages from S3 to ensure we include them in the repo metadata
-          echo "Downloading existing packages from S3..."
-          s3cmd sync --region=${{ env.RPM_S3_REGION }} s3://${{ env.RPM_S3_BUCKET }}/rpm/${{ matrix.os.name }}${{ matrix.os.version }}/ s3uploads/${{ matrix.os.name }}${{ matrix.os.version }}/
-
-          # Copy all signed RPMs from both architectures to the repository directory
-          echo "Adding newly signed packages..."
-          cp -r combined-rpms/${{ matrix.os.name }}${{ matrix.os.version }}/* s3uploads/${{ matrix.os.name }}${{ matrix.os.version }}/
-
-          # List all files to verify
-          echo "All packages in repository:"
-          find s3uploads -type f -name "*.rpm" | sort
-
-          # Create repository metadata with signatures for this OS version
-          echo "Generating repository metadata..."
-          cd s3uploads/${{ matrix.os.name }}${{ matrix.os.version }}
-          createrepo_c .
-
-      - name: Update packages and publish to private repo
-        env:
-          RPM_S3_BUCKET: ${{ secrets.RPM_S3_BUCKET }}
-          RPM_S3_REGION: ${{ secrets.RPM_S3_REGION }}
-        run: |
-          # Use --no-delete-removed to ensure we don't delete any existing packages
-          echo "Uploading repository to S3..."
-          s3cmd sync --acl-public --no-delete-removed --region=${{ env.RPM_S3_REGION }} s3uploads/${{ matrix.os.name }}${{ matrix.os.version }}/* s3://${{ env.RPM_S3_BUCKET }}/rpm/${{ matrix.os.name }}${{ matrix.os.version }}/
-
-          echo "Repository update complete for ${{ matrix.os.name }}${{ matrix.os.version }}"
