@@ -53,7 +53,7 @@ jobs:
           context: .
           file: dockerfiles/Dockerfile.${{ inputs.os }}
           platforms: linux/${{ matrix.platform }}
-          push: false
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache.${{ inputs.os }}.${{ matrix.platform }}
