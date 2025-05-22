@@ -25,7 +25,7 @@ jobs:
   package-rpm:
     name: Build and Package
     needs: build-containers
-    runs-on: ${{ matrix.platform == 'arm64' && 'ubuntu24-arm64-2-8' || 'ubuntu-latest-8-cores' }}
+    runs-on: ${{ matrix.platform == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest-8-cores' }}
     permissions:
       packages: read
       contents: read
@@ -101,7 +101,7 @@ jobs:
   test-rpm:
     name: Sanity Tests
     needs: package-rpm
-    runs-on: ${{ matrix.platform == 'arm64' && 'ubuntu24-arm64-2-8' || 'ubuntu-latest' }}
+    runs-on: ${{ matrix.platform == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     container:
       image: "${{ matrix.distro }}:${{ matrix.distro == 'quay.io/centos/centos' && 'stream' || '' }}${{ matrix.distro_version }}"
     strategy:
