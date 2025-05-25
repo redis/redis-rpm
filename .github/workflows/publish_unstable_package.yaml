@@ -3,10 +3,10 @@ name: Build Redis CE RPM (Unstable)
 on:
   pull_request:
     branches:
-      - release/8.0 #Change this to 'unstable' branch once it'll be created. Change the PR to 'unstable'
+      - unstable #Change this to 'unstable' branch once it'll be created. Change the PR to 'unstable'
   push:
     branches:
-      - release/8.0
+      - unstable
 
 env:
   VERSION: "unstable"
