@@ -1,4 +1,4 @@
-name: Build Redis CE RPM (Unstable)
+name: Build and Test Unstable
 
 on:
   pull_request:
