@@ -48,9 +48,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Build Redis
         with:
           ref: 'unstable'
+
+      - name: Build Redis
         id: build_redis
         run: |
           # Create logs directory
