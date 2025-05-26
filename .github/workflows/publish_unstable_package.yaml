@@ -95,18 +95,7 @@ jobs:
           if [ ${PIPESTATUS[0]} -ne 0 ]; then
             echo "build_failed=true" >> $GITHUB_OUTPUT
             echo "log_filename=$LOG_FILENAME" >> $GITHUB_OUTPUT
-            
-            # Extract the last 10 lines of the log for the error message
-            ERROR_MSG=$(tail -n 10 "logs/$LOG_FILENAME")
-            
-            # Create a GitHub annotation with the error details
-            echo "::error title=Redis Build Failed::Build failed with error. Last 10 lines of log: $(echo "$ERROR_MSG" | tr '\n' ' ' | sed 's/"/\\"/g')"
-            
-            # Also print to console
             echo "Build failed. See logs for details."
-            echo "Last 10 lines of log:"
-            echo "$ERROR_MSG"
-            
             exit 1
           fi
 
