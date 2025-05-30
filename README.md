@@ -25,15 +25,14 @@ This repository creates the redis-tools rpm, uploading it to our S3 RPM feed.
 ```sh
 curl -fsSL https://packages.redis.io/gpg > /tmp/redis.key
 sudo rpm --import /tmp/redis.key
-sudo yum install epel-release
-sudo yum install redis-server
+sudo yum install redis
 ```
 
 > [!TIP]
 > Redis will not start automatically, nor will it start at boot time. To do this, run the following commands.
 > ```sh
-> sudo systemctl enable redis-server
-> sudo systemctl start redis-server
+> sudo systemctl enable redis
+> sudo systemctl start redis
 > ```
 
 ## Supported Operating Systems
