@@ -1,0 +1,22 @@
+name: Nightly Unstable Build and Package
+
+on:
+  schedule:
+    - cron: '0 1 * * *'  # Run at 1:00 AM UTC every day
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  trigger-unstable-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout unstable branch
+        uses: actions/checkout@v4
+        with:
+          ref: 'unstable'
+          
+      - name: Trigger publish_unstable_package workflow
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: publish_unstable_package.yaml
+          ref: unstable
+          token: ${{ secrets.GITHUB_TOKEN }}
