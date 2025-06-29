@@ -48,10 +48,10 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          ref: 'unstable'
-
+          ref: ${{ github.event.pull_request && github.sha || 'unstable' }}
       - name: Build Redis
         id: build_redis
         run: |
@@ -197,9 +197,17 @@ jobs:
 
       - name: Install RPM dependencies
         run: |
-          dnf install -y ./rpm/*.rpm || true
+          echo "Installing Redis RPM package..."
+          dnf install -y ./rpm/*.rpm || { echo "Warning: DNF install completed with non-zero exit code"; true; }
+          
+          echo "Enabling Redis service..."
           systemctl enable redis
+          systemctl status redis || true
+          
+          echo "Starting Redis service..."
           systemctl start redis
+          systemctl status redis || true
+          echo "Redis service installation and startup completed"
 
       - name: Basic Sanity Tests
         run: |
