@@ -205,7 +205,13 @@ jobs:
           systemctl status redis || true
           
           echo "Starting Redis service..."
-          systemctl start redis
+          if ! systemctl start redis; then
+            echo "Failed to start Redis service. Checking logs..."
+            journalctl -u redis --no-pager
+            systemctl status redis --no-pager
+            exit 1
+          fi
+          
           systemctl status redis || true
           echo "Redis service installation and startup completed"
 
