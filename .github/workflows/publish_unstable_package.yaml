@@ -48,10 +48,10 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          ref: 'unstable'
-
+          ref: ${{ github.event.pull_request && github.sha || 'unstable' }}
       - name: Build Redis
         id: build_redis
         run: |

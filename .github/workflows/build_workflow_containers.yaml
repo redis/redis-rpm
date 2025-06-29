@@ -22,9 +22,10 @@ jobs:
       matrix:
         platform: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          ref: 'unstable'
+          ref: ${{ github.event.pull_request && github.sha || 'unstable' }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
