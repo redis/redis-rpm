@@ -209,14 +209,13 @@ jobs:
             echo "Failed to start Redis service. Checking logs..."
             journalctl -u redis --no-pager
             systemctl status redis --no-pager
+            echo "Checking Redis server logs..."
+            if [ -f "/var/log/redis/redis-server.log" ]; then
+              cat "/var/log/redis/redis-server.log"
+            else
+              echo "Redis server log file not found at /var/log/redis/redis-server.log"
+            fi
             exit 1
-          fi
-
-          echo "Checking Redis server logs..."
-          if [ -f "/var/log/redis/redis-server.log" ]; then
-            cat "/var/log/redis/redis-server.log"
-          else
-            echo "Redis server log file not found at /var/log/redis/redis-server.log"
           fi
           
           systemctl status redis || true
