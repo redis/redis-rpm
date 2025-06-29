@@ -211,6 +211,13 @@ jobs:
             systemctl status redis --no-pager
             exit 1
           fi
+
+          echo "Checking Redis server logs..."
+          if [ -f "/var/log/redis/redis-server.log" ]; then
+            cat "/var/log/redis/redis-server.log"
+          else
+            echo "Redis server log file not found at /var/log/redis/redis-server.log"
+          fi
           
           systemctl status redis || true
           echo "Redis service installation and startup completed"
