@@ -3,13 +3,13 @@ name: Build Redis CE RPM
 on:
   pull_request:
     branches:
-      - release/8.0
+      - release/8.*
   push:
     branches:
-      - release/8.0
+      - release/8.*
 
 env:
-  VERSION: "8.0.3"
+  VERSION: "8.2.0"
 
 jobs:
   build-containers:
@@ -237,7 +237,7 @@ jobs:
   download-rpms:
     name: Download RPM Artifacts
     needs: test-rpm
-    if: github.ref == 'refs/heads/release/8.0'
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -264,7 +264,7 @@ jobs:
   upload-rpm:
     name: Upload RPM to S3
     needs: download-rpms
-    if: github.ref == 'refs/heads/release/8.0'
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       id-token: write
