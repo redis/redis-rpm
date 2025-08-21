@@ -2,7 +2,7 @@ FROM rockylinux:8
 
 # Update system and install basic tools
 RUN dnf clean all && \
-    echo '[goreleaser]\nname=GoReleaser\nbaseurl=https://repo.goreleaser.com/yum/\nenabled=1\ngpgcheck=0' > /etc/yum.repos.d/goreleaser.repo; \
+    echo -e '[goreleaser]\nname=GoReleaser\nbaseurl=https://repo.goreleaser.com/yum/\nenabled=1\ngpgcheck=0' > /etc/yum.repos.d/goreleaser.repo; \
     dnf update -y && \
     dnf groupinstall "Development Tools" -yqq && \
     dnf config-manager --set-enabled powertools && \

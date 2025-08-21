@@ -1,7 +1,7 @@
 FROM rockylinux:9
 
 # Install basic packages and development tools
-RUN echo '[goreleaser]\nname=GoReleaser\nbaseurl=https://repo.goreleaser.com/yum/\nenabled=1\ngpgcheck=0' > /etc/yum.repos.d/goreleaser.repo; \
+RUN echo -e '[goreleaser]\nname=GoReleaser\nbaseurl=https://repo.goreleaser.com/yum/\nenabled=1\ngpgcheck=0' > /etc/yum.repos.d/goreleaser.repo; \
     dnf clean all && \
     dnf makecache && \
     dnf update -y && \
