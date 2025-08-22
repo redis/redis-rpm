@@ -1,4 +1,7 @@
 #!/bin/bash
-# Stop and disable the service
-systemctl stop redis.service
-systemctl disable redis.service
+
+if [ "$1" = "0" ]; then
+    # Package removal, not an upgrade
+    systemctl stop redis.service 2>&1 || :
+    systemctl disable redis.service 2>&1 || :
+fi
