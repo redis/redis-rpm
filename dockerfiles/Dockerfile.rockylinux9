@@ -22,6 +22,8 @@ RUN echo '[goreleaser]\nname=GoReleaser\nbaseurl=https://repo.goreleaser.com/yum
     unzip \
     rsync \
     clang \
+    clang-devel \
+    llvm \
     curl \
     libtool \
     automake \

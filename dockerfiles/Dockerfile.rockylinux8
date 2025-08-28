@@ -24,6 +24,8 @@ RUN dnf install -y --nobest --skip-broken \
     unzip \
     rsync \
     clang \
+    clang-devel \
+    llvm \
     curl \
     libtool \
     automake \
