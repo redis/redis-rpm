@@ -9,7 +9,7 @@ on:
       - release/8.0
 
 env:
-  VERSION: "8.0.3"
+  VERSION: "8.0.4"
 
 jobs:
   build-containers:
