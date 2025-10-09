@@ -28,12 +28,24 @@ sudo rpm --import /tmp/redis.key
 sudo yum install redis
 ```
 
+## Starting Redis
+
+To start the `redis-server`:
+```sh
+redis-server /etc/redis/redis.conf &
+```
+
+Note that `redis-server` output is redirected to `/var/log/redis/redis-server.log`.
+
 > [!TIP]
 > Redis will not start automatically, nor will it start at boot time. To do this, run the following commands.
 > ```sh
 > sudo systemctl enable redis
 > sudo systemctl start redis
 > ```
+
+This will start `redis-server` with `/etc/redis/redis.conf`.
+
 
 ## Supported Operating Systems
 
