@@ -32,7 +32,7 @@ sudo yum install redis
 
 To start the `redis-server`:
 ```sh
-/etc/redis/redis-server ./redis.conf &
+redis-server /etc/redis/redis.conf &
 ```
 
 Note that `redis-server` output is redirected to `/var/log/redis/redis-server.log`.
