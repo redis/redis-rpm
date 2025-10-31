@@ -1,0 +1,133 @@
+name: "Build RPM package"
+description: "Builds Redis RPM package for specified distribution and architecture"
+
+inputs:
+  distro:
+    description: "Distribution name (e.g., rockylinux)"
+    required: true
+  distro_version:
+    description: "Distribution version (e.g., 8, 9)"
+    required: true
+  platform:
+    description: "Platform/architecture (e.g., amd64, arm64)"
+    required: true
+  release_tag:
+    description: "Release tag (version or 'unstable')"
+    required: true
+  checkout_ref:
+    description: "Git ref to checkout"
+    required: false
+    default: ''
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.checkout_ref || '' }}
+
+    - name: Determine version
+      id: version
+      shell: bash
+      run: |
+        if [ "${{ inputs.release_tag }}" = "unstable" ]; then
+          VERSION="unstable"
+        else
+          if [ -f ".redis_version" ]; then
+            VERSION=$(cat .redis_version)
+          else
+            echo "Error: .redis_version file not found and release_tag is not 'unstable'"
+            exit 1
+          fi
+        fi
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "Building version: $VERSION"
+
+    - name: Build Redis with modules
+      id: build_redis
+      shell: bash
+      run: |
+        # Create logs directory
+        mkdir -p logs
+
+        # Define log filename with the requested format
+        LOG_FILENAME="build-failure-${{ inputs.platform }}-${{ inputs.distro }}${{ inputs.distro_version }}.log"
+
+        # Run the build process and capture output to log file
+        {
+          # Source gcc-toolset-13 environment, since GitHub Actions's shell is invoked with `--norc`
+          source /etc/profile.d/gcc-toolset-13.sh
+          export BUILD_WITH_MODULES=yes
+          export INSTALL_RUST_TOOLCHAIN=yes
+          export DISABLE_WERRORS=yes
+          export BUILD_TLS=yes
+          export USE_SYSTEMD=yes
+
+          if [ "${{ inputs.release_tag }}" = "unstable" ]; then
+            # Clone Redis unstable branch instead of downloading release tarball
+            git clone --depth 1 https://github.com/redis/redis.git -b unstable
+            cd redis
+
+            # Update module versions to use master branch
+            echo "Updating module versions to use master branch..."
+            for module in redisbloom redisearch redistimeseries redisjson; do
+              if [ -f "modules/${module}/Makefile" ]; then
+                echo "Updating ${module} to use master branch"
+                sed -i 's/MODULE_VERSION = .*/MODULE_VERSION = master/' "modules/${module}/Makefile"
+                cat "modules/${module}/Makefile" | grep "MODULE_VERSION"
+              fi
+            done
+          else
+            # Download and extract Redis source
+            curl -L "https://github.com/redis/redis/archive/refs/tags/${{ steps.version.outputs.VERSION }}.tar.gz" -o redis.tar.gz
+            tar xzf redis.tar.gz
+            cd redis-${{ steps.version.outputs.VERSION }}
+          fi
+
+          # Build Redis
+          make -j "$(nproc)" all
+          make install PREFIX=/usr/local
+          echo "Contents of /usr/local/lib/redis/modules/:"
+          ls -la /usr/local/lib/redis/modules/
+        } 2>&1 | tee "logs/$LOG_FILENAME"
+
+        # Check if the build was successful
+        if [ ${PIPESTATUS[0]} -ne 0 ]; then
+          echo "build_failed=true" >> $GITHUB_OUTPUT
+          echo "log_filename=$LOG_FILENAME" >> $GITHUB_OUTPUT
+          echo "Build failed. See logs for details."
+          exit 1
+        fi
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Install nfpm
+      shell: bash
+      run: |
+        go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+
+    - name: Build RPM package
+      shell: bash
+      run: |
+        cp templates/nfpm.yaml.tpl nfpm.yaml
+        mkdir -p dist
+        VERSION=${{ steps.version.outputs.VERSION }} ARCH=${{ inputs.platform }} nfpm package --packager rpm --target dist
+
+    - name: Upload RPM artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: rpm-${{ inputs.distro }}${{ inputs.distro_version }}-${{ inputs.platform }}
+        path: dist/*.rpm
+
+    - name: Upload build logs
+      uses: actions/upload-artifact@v4
+      if: failure() && steps.build_redis.outputs.build_failed == 'true'
+      with:
+        name: build-failure-${{ inputs.platform }}-${{ inputs.distro }}${{ inputs.distro_version }}
+        path: logs/build-failure-${{ inputs.platform }}-${{ inputs.distro }}${{ inputs.distro_version }}.log
+        retention-days: 7
+
