@@ -22,10 +22,10 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        ref: ${{ inputs.checkout_ref || '' }}
+    - name: Log in to GitHub Container Registry
+      shell: bash
+      run: |
+        echo "${{ github.token }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
     - name: Determine version
       id: version
@@ -44,53 +44,61 @@ runs:
         echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
         echo "Building version: $VERSION"
 
-    - name: Build Redis with modules
+    - name: Build Redis with modules in container
       id: build_redis
       shell: bash
       run: |
         # Create logs directory
         mkdir -p logs
+        mkdir -p dist
 
         # Define log filename with the requested format
         LOG_FILENAME="build-failure-${{ inputs.platform }}-${{ inputs.distro }}${{ inputs.distro_version }}.log"
 
-        # Run the build process and capture output to log file
-        {
-          # Source gcc-toolset-13 environment, since GitHub Actions's shell is invoked with `--norc`
-          source /etc/profile.d/gcc-toolset-13.sh
-          export BUILD_WITH_MODULES=yes
-          export INSTALL_RUST_TOOLCHAIN=yes
-          export DISABLE_WERRORS=yes
-          export BUILD_TLS=yes
-          export USE_SYSTEMD=yes
+        # Run the build process inside the builder container
+        docker run --rm \
+          -v "$PWD:/workspace" \
+          -w /workspace \
+          ghcr.io/${{ github.repository }}/builder:${{ inputs.distro }}${{ inputs.distro_version }} \
+          bash -c '
+            set -e
+            set -o pipefail
 
-          if [ "${{ inputs.release_tag }}" = "unstable" ]; then
-            # Clone Redis unstable branch instead of downloading release tarball
-            git clone --depth 1 https://github.com/redis/redis.git -b unstable
-            cd redis
+            # Source gcc-toolset-13 environment
+            source /etc/profile.d/gcc-toolset-13.sh
+            export BUILD_WITH_MODULES=yes
+            export INSTALL_RUST_TOOLCHAIN=yes
+            export DISABLE_WERRORS=yes
+            export BUILD_TLS=yes
+            export USE_SYSTEMD=yes
 
-            # Update module versions to use master branch
-            echo "Updating module versions to use master branch..."
-            for module in redisbloom redisearch redistimeseries redisjson; do
-              if [ -f "modules/${module}/Makefile" ]; then
-                echo "Updating ${module} to use master branch"
-                sed -i 's/MODULE_VERSION = .*/MODULE_VERSION = master/' "modules/${module}/Makefile"
-                cat "modules/${module}/Makefile" | grep "MODULE_VERSION"
-              fi
-            done
-          else
-            # Download and extract Redis source
-            curl -L "https://github.com/redis/redis/archive/refs/tags/${{ steps.version.outputs.VERSION }}.tar.gz" -o redis.tar.gz
-            tar xzf redis.tar.gz
-            cd redis-${{ steps.version.outputs.VERSION }}
-          fi
+            if [ "${{ inputs.release_tag }}" = "unstable" ]; then
+              # Clone Redis unstable branch instead of downloading release tarball
+              git clone --depth 1 https://github.com/redis/redis.git -b unstable
+              cd redis
 
-          # Build Redis
-          make -j "$(nproc)" all
-          make install PREFIX=/usr/local
-          echo "Contents of /usr/local/lib/redis/modules/:"
-          ls -la /usr/local/lib/redis/modules/
-        } 2>&1 | tee "logs/$LOG_FILENAME"
+              # Update module versions to use master branch
+              echo "Updating module versions to use master branch..."
+              for module in redisbloom redisearch redistimeseries redisjson; do
+                if [ -f "modules/${module}/Makefile" ]; then
+                  echo "Updating ${module} to use master branch"
+                  sed -i "s/MODULE_VERSION = .*/MODULE_VERSION = master/" "modules/${module}/Makefile"
+                  cat "modules/${module}/Makefile" | grep "MODULE_VERSION"
+                fi
+              done
+            else
+              # Download and extract Redis source
+              curl -L "https://github.com/redis/redis/archive/refs/tags/${{ steps.version.outputs.VERSION }}.tar.gz" -o redis.tar.gz
+              tar xzf redis.tar.gz
+              cd redis-${{ steps.version.outputs.VERSION }}
+            fi
+
+            # Build Redis
+            make -j "$(nproc)" all
+            make install PREFIX=/usr/local
+            echo "Contents of /usr/local/lib/redis/modules/:"
+            ls -la /usr/local/lib/redis/modules/
+          ' 2>&1 | tee "logs/$LOG_FILENAME"
 
         # Check if the build was successful
         if [ ${PIPESTATUS[0]} -ne 0 ]; then
@@ -100,22 +108,37 @@ runs:
           exit 1
         fi
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.21'
-
-    - name: Install nfpm
+    - name: Build RPM package in container
       shell: bash
       run: |
-        go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+        # Run nfpm packaging inside the same builder container
+        docker run --rm \
+          -v "$PWD:/workspace" \
+          -w /workspace \
+          ghcr.io/${{ github.repository }}/builder:${{ inputs.distro }}${{ inputs.distro_version }} \
+          bash -c '
+            set -e
 
-    - name: Build RPM package
-      shell: bash
-      run: |
-        cp templates/nfpm.yaml.tpl nfpm.yaml
-        mkdir -p dist
-        VERSION=${{ steps.version.outputs.VERSION }} ARCH=${{ inputs.platform }} nfpm package --packager rpm --target dist
+            # Install Go and nfpm
+            export GOPATH=/tmp/go
+            export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
+
+            # Check if Go is installed, if not install it
+            if ! command -v go &> /dev/null; then
+              echo "Installing Go..."
+              curl -L https://go.dev/dl/go1.21.0.linux-${{ inputs.platform == 'amd64' && 'amd64' || 'arm64' }}.tar.gz -o go.tar.gz
+              tar -C /usr/local -xzf go.tar.gz
+              rm go.tar.gz
+            fi
+
+            # Install nfpm
+            go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+
+            # Build RPM package
+            cp templates/nfpm.yaml.tpl nfpm.yaml
+            mkdir -p dist
+            VERSION=${{ steps.version.outputs.VERSION }} ARCH=${{ inputs.platform }} nfpm package --packager rpm --target dist
+          '
 
     - name: Upload RPM artifact
       uses: actions/upload-artifact@v4
