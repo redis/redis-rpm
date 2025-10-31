@@ -27,6 +27,25 @@ runs:
       run: |
         echo "${{ github.token }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
+    - name: Start builder container
+      shell: bash
+      run: |
+        docker run -d --name builder \
+          -v "$PWD:/workspace" \
+          -w /workspace \
+          ghcr.io/${{ github.repository }}/builder:${{ inputs.distro }}${{ inputs.distro_version }} \
+          sleep infinity
+
+    - name: Create docker-builder wrapper
+      shell: bash
+      run: |
+        cat > /tmp/docker-builder << 'EOF'
+        #!/bin/bash
+        cat "$1" | docker exec -i builder bash
+        EOF
+        chmod +x /tmp/docker-builder
+        echo "/tmp" >> $GITHUB_PATH
+
     - name: Determine version
       id: version
       shell: bash
@@ -48,6 +67,8 @@ runs:
       id: build_redis
       shell: bash
       run: |
+        set +e  # Don't exit on error, we want to capture logs
+
         # Create logs directory
         mkdir -p logs
         mkdir -p dist
@@ -55,90 +76,99 @@ runs:
         # Define log filename with the requested format
         LOG_FILENAME="build-failure-${{ inputs.platform }}-${{ inputs.distro }}${{ inputs.distro_version }}.log"
 
-        # Run the build process inside the builder container
-        docker run --rm \
-          -v "$PWD:/workspace" \
-          -w /workspace \
-          ghcr.io/${{ github.repository }}/builder:${{ inputs.distro }}${{ inputs.distro_version }} \
-          bash -c '
-            set -e
-            set -o pipefail
+        # Create build script
+        cat > /tmp/build-redis.sh << 'BUILDSCRIPT'
+        set -e
+        set -o pipefail
 
-            # Source gcc-toolset-13 environment
-            source /etc/profile.d/gcc-toolset-13.sh
-            export BUILD_WITH_MODULES=yes
-            export INSTALL_RUST_TOOLCHAIN=yes
-            export DISABLE_WERRORS=yes
-            export BUILD_TLS=yes
-            export USE_SYSTEMD=yes
+        # Source gcc-toolset-13 environment
+        source /etc/profile.d/gcc-toolset-13.sh
+        export BUILD_WITH_MODULES=yes
+        export INSTALL_RUST_TOOLCHAIN=yes
+        export DISABLE_WERRORS=yes
+        export BUILD_TLS=yes
+        export USE_SYSTEMD=yes
 
-            if [ "${{ inputs.release_tag }}" = "unstable" ]; then
-              # Clone Redis unstable branch instead of downloading release tarball
-              git clone --depth 1 https://github.com/redis/redis.git -b unstable
-              cd redis
+        if [ "${{ inputs.release_tag }}" = "unstable" ]; then
+          # Clone Redis unstable branch instead of downloading release tarball
+          git clone --depth 1 https://github.com/redis/redis.git -b unstable
+          cd redis
 
-              # Update module versions to use master branch
-              echo "Updating module versions to use master branch..."
-              for module in redisbloom redisearch redistimeseries redisjson; do
-                if [ -f "modules/${module}/Makefile" ]; then
-                  echo "Updating ${module} to use master branch"
-                  sed -i "s/MODULE_VERSION = .*/MODULE_VERSION = master/" "modules/${module}/Makefile"
-                  cat "modules/${module}/Makefile" | grep "MODULE_VERSION"
-                fi
-              done
-            else
-              # Download and extract Redis source
-              curl -L "https://github.com/redis/redis/archive/refs/tags/${{ steps.version.outputs.VERSION }}.tar.gz" -o redis.tar.gz
-              tar xzf redis.tar.gz
-              cd redis-${{ steps.version.outputs.VERSION }}
+          # Update module versions to use master branch
+          echo "Updating module versions to use master branch..."
+          for module in redisbloom redisearch redistimeseries redisjson; do
+            if [ -f "modules/${module}/Makefile" ]; then
+              echo "Updating ${module} to use master branch"
+              sed -i "s/MODULE_VERSION = .*/MODULE_VERSION = master/" "modules/${module}/Makefile"
+              cat "modules/${module}/Makefile" | grep "MODULE_VERSION"
             fi
+          done
+        else
+          # Download and extract Redis source
+          curl -L "https://github.com/redis/redis/archive/refs/tags/${{ steps.version.outputs.VERSION }}.tar.gz" -o redis.tar.gz
+          tar xzf redis.tar.gz
+          cd redis-${{ steps.version.outputs.VERSION }}
+        fi
 
-            # Build Redis
-            make -j "$(nproc)" all
-            make install PREFIX=/usr/local
-            echo "Contents of /usr/local/lib/redis/modules/:"
-            ls -la /usr/local/lib/redis/modules/
-          ' 2>&1 | tee "logs/$LOG_FILENAME"
+        # Build Redis
+        make -j "$(nproc)" all
+        make install PREFIX=/usr/local
+        echo "Contents of /usr/local/lib/redis/modules/:"
+        ls -la /usr/local/lib/redis/modules/
+        BUILDSCRIPT
+
+        # Run build and capture output
+        cat /tmp/build-redis.sh | docker exec -i builder bash 2>&1 | tee "logs/$LOG_FILENAME"
+        BUILD_EXIT_CODE=${PIPESTATUS[0]}
 
         # Check if the build was successful
-        if [ ${PIPESTATUS[0]} -ne 0 ]; then
+        if [ $BUILD_EXIT_CODE -ne 0 ]; then
           echo "build_failed=true" >> $GITHUB_OUTPUT
           echo "log_filename=$LOG_FILENAME" >> $GITHUB_OUTPUT
           echo "Build failed. See logs for details."
           exit 1
         fi
 
-    - name: Build RPM package in container
-      shell: bash
+    - name: Install Go and nfpm in container
+      shell: docker-builder {0}
       run: |
-        # Run nfpm packaging inside the same builder container
-        docker run --rm \
-          -v "$PWD:/workspace" \
-          -w /workspace \
-          ghcr.io/${{ github.repository }}/builder:${{ inputs.distro }}${{ inputs.distro_version }} \
-          bash -c '
-            set -e
+        set -e
 
-            # Install Go and nfpm
-            export GOPATH=/tmp/go
-            export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
+        # Install Go and nfpm
+        export GOPATH=/tmp/go
+        export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
 
-            # Check if Go is installed, if not install it
-            if ! command -v go &> /dev/null; then
-              echo "Installing Go..."
-              curl -L https://go.dev/dl/go1.21.0.linux-${{ inputs.platform == 'amd64' && 'amd64' || 'arm64' }}.tar.gz -o go.tar.gz
-              tar -C /usr/local -xzf go.tar.gz
-              rm go.tar.gz
-            fi
+        # Check if Go is installed, if not install it
+        if ! command -v go &> /dev/null; then
+          echo "Installing Go..."
+          curl -L https://go.dev/dl/go1.21.0.linux-${{ inputs.platform == 'amd64' && 'amd64' || 'arm64' }}.tar.gz -o go.tar.gz
+          tar -C /usr/local -xzf go.tar.gz
+          rm go.tar.gz
+        fi
 
-            # Install nfpm
-            go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+        # Install nfpm
+        go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
 
-            # Build RPM package
-            cp templates/nfpm.yaml.tpl nfpm.yaml
-            mkdir -p dist
-            VERSION=${{ steps.version.outputs.VERSION }} ARCH=${{ inputs.platform }} nfpm package --packager rpm --target dist
-          '
+    - name: Build RPM package
+      shell: docker-builder {0}
+      run: |
+        set -e
+
+        # Set up environment
+        export GOPATH=/tmp/go
+        export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
+
+        # Build RPM package
+        cp templates/nfpm.yaml.tpl nfpm.yaml
+        mkdir -p dist
+        VERSION=${{ steps.version.outputs.VERSION }} ARCH=${{ inputs.platform }} nfpm package --packager rpm --target dist
+
+    - name: Stop builder container
+      shell: bash
+      if: always()
+      run: |
+        docker stop builder || true
+        docker rm builder || true
 
     - name: Upload RPM artifact
       uses: actions/upload-artifact@v4
@@ -148,9 +178,15 @@ runs:
 
     - name: Upload build logs
       uses: actions/upload-artifact@v4
-      if: failure() && steps.build_redis.outputs.build_failed == 'true'
+      if: failure()
       with:
         name: build-failure-${{ inputs.platform }}-${{ inputs.distro }}${{ inputs.distro_version }}
         path: logs/build-failure-${{ inputs.platform }}-${{ inputs.distro }}${{ inputs.distro_version }}.log
         retention-days: 7
+
+    - name: Cleanup
+      shell: bash
+      if: always()
+      run: |
+        rm -rf redis redis-*.tar.gz
 
