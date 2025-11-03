@@ -51,6 +51,7 @@ runs:
         cat > /$dir/docker-builder <<EOF
         #!/bin/bash
         cat "\$1" | docker exec -i builder bash 2>&1 | tee "logs/$LOG_FILENAME"
+        exit \${PIPESTATUS[1]}
         EOF
         chmod 0755 $dir/docker-builder
         echo "$dir" >> $GITHUB_PATH

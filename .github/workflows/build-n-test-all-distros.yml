@@ -27,6 +27,8 @@ jobs:
   build-package:
     name: Build RPM (${{ matrix.distro }}${{ matrix.distro_version }}-${{ matrix.platform }})
     runs-on: ${{ matrix.platform == 'arm64' && 'ubuntu24-arm64-2-8' || 'ubuntu-latest' }}
+    outputs:
+      release_version_branch: ${{ steps.ensure-branch.outputs.release_version_branch }}
     strategy:
       fail-fast: false
       matrix:
@@ -65,6 +67,11 @@ jobs:
       matrix:
         include: ${{ fromJSON(inputs.TEST_OS) }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag == 'unstable' && 'unstable' || (inputs.release_tag != '' && needs.build-package.outputs.release_version_branch || '') }}
+
       - name: Run smoke tests
         uses: ./.github/actions/run-smoke-tests
         with:
