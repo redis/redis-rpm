@@ -14,13 +14,15 @@ on:
       release_type:
         description: 'Type of release to upload (public, internal)'
         required: true
-  push:
 
 # UUID is used to help automation to identify workflow run in the list of workflow runs.
 run-name: "Release Build and Test${{ github.event.inputs.workflow_uuid && format(': {0}', github.event.inputs.workflow_uuid) || '' }}"
 
 jobs:
   prepare-release:
+    outputs:
+      BUILD_OS: ${{ steps.populate-env-vars.outputs.BUILD_OS }}
+      TEST_OS: ${{ steps.populate-env-vars.outputs.TEST_OS }}
     runs-on: ["ubuntu-latest"]
     steps:
       - name: Checkout code
@@ -47,27 +49,17 @@ jobs:
           release_version_branch: ${{ steps.ensure-branch.outputs.release_version_branch }}
           release_type: ${{ github.event.inputs.release_type }}
 
-  populate-env-vars:
-    runs-on: ["ubuntu-latest"]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Parse vars
-        id: parse
+      - name: Populate env vars
+        id: populate-env-vars
         uses: ./.github/actions/parse-env-file
-    outputs:
-      BUILD_OS: ${{ steps.parse.outputs.BUILD_OS }}
-      TEST_OS: ${{ steps.parse.outputs.TEST_OS }}
 
   build-n-test:
     needs:
       - prepare-release
-      - populate-env-vars
     uses: ./.github/workflows/build-n-test-all-distros.yml
     with:
-      BUILD_OS: ${{ needs.populate-env-vars.outputs.BUILD_OS }}
-      TEST_OS: ${{ needs.populate-env-vars.outputs.TEST_OS }}
+      BUILD_OS: ${{ needs.prepare-release.outputs.BUILD_OS }}
+      TEST_OS: ${{ needs.prepare-release.outputs.TEST_OS }}
       release_tag: ${{ inputs.release_tag }}
 
   create-release-handle:
