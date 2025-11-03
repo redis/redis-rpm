@@ -88,8 +88,6 @@ runs:
         export BUILD_TLS=yes
         export USE_SYSTEMD=yes
 
-        makeerror
-
         if [ "${{ steps.version.outputs.VERSION }}" = "unstable" ]; then
           # Clone Redis unstable branch instead of downloading release tarball
           git clone --depth 1 https://github.com/redis/redis.git -b unstable
