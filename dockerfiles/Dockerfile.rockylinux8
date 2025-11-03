@@ -23,8 +23,6 @@ RUN dnf install -y --nobest --skip-broken \
     python3.11-devel \
     unzip \
     rsync \
-    clang \
-    clang-devel \
     llvm \
     curl \
     libtool \
