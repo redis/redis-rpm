@@ -31,26 +31,13 @@ runs:
     - name: Setup systemctl replacement
       shell: bash
       run: |
-        # For CentOS 8, update mirrors to vault first
-        if [ "${{ inputs.distro }}" = "quay.io/centos/centos" ] && [ "${{ inputs.distro_version }}" = "8" ]; then
-          sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
-          sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
-        fi
         # Install curl if not present
         dnf install -y --allowerasing curl python3
 
         # Download systemctl replacement first as .py file
         curl -L https://raw.githubusercontent.com/gdraheim/docker-systemctl-replacement/master/files/docker/systemctl3.py -o /usr/bin/systemctl3.py
 
-        # Handle Python interpreter path based on distribution
-        if [ "${{ inputs.distro }}" = "quay.io/centos/centos" ] && [ "${{ inputs.distro_version }}" = "8" ]; then
-          # CentOS 8 uses platform-python
-          pythonpath="/usr/libexec/platform-python"
-        else
-          # Other distributions use regular python3
-          pythonpath="/usr/bin/python3"
-        fi
-
+        pythonpath="/usr/bin/python3"
         # Create wrapper script with correct shebang
         echo "#!$pythonpath" > /usr/bin/systemctl
         cat /usr/bin/systemctl3.py >> /usr/bin/systemctl
@@ -58,13 +45,6 @@ runs:
 
         # Create required systemd directory structure
         mkdir -p /run/systemd/system/
-
-    - name: Update CentOS 8 mirror URLs to vault
-      if: inputs.distro == 'quay.io/centos/centos' && inputs.distro_version == '8'
-      shell: bash
-      run: |
-        sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
-        sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
 
     - name: Install RPM dependencies
       shell: bash
