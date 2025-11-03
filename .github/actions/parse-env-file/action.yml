@@ -15,7 +15,7 @@ outputs:
     description: "JSON array of {distro, distro_version, platform} where build: true"
     value: ${{ steps.parse.outputs.BUILD_OS }}
   TEST_OS:
-    description: "JSON array of {distro, distro_version, platform, test_package_distro} where test: true"
+    description: "JSON array of {distro, distro_version, platform, test_artifact_name} where test: true"
     value: ${{ steps.parse.outputs.TEST_OS }}
 
 runs:
@@ -52,8 +52,7 @@ runs:
         echo "BUILD_OS=$BUILD_OS" >> $GITHUB_OUTPUT
         echo "BUILD_OS: $BUILD_OS"
 
-        # Extract TEST_OS (include test_package_distro)
-        TEST_OS=$(jq -c '[.[] | select(.test == true) | {distro, distro_version, platform, test_package_distro}]' "$env_file")
+        # Extract TEST_OS (include test_artifact_name)
+        TEST_OS=$(jq -c '[.[] | select(.test == true) | {distro, distro_version, platform, test_artifact_name}]' "$env_file")
         echo "TEST_OS=$TEST_OS" >> $GITHUB_OUTPUT
         echo "TEST_OS: $TEST_OS"
-
