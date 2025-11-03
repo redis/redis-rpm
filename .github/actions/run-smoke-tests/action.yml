@@ -14,26 +14,17 @@ inputs:
   platform:
     description: "Platform/architecture (e.g., amd64, arm64)"
     required: true
-  test_package_distro:
-    description: "Distribution name of the package to use for testing (e.g., rockylinux)"
+  test_artifact_name:
+    description: "Artifact name to download (e.g., rpm-rockylinux9-amd64)"
     required: true
-  checkout_ref:
-    description: "Git ref to checkout"
-    required: false
-    default: ''
 
 runs:
   using: "composite"
   steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        ref: ${{ inputs.checkout_ref || '' }}
-
     - name: Download RPM artifact
       uses: actions/download-artifact@v4
       with:
-        name: rpm-${{ inputs.test_package_distro }}${{ inputs.distro_version }}-${{ inputs.platform }}
+        name: ${{ inputs.test_artifact_name }}
         run-id: ${{ inputs.run_id }}
         path: ./rpm
 

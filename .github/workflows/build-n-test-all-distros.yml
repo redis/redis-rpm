@@ -53,7 +53,6 @@ jobs:
           distro_version: ${{ matrix.distro_version }}
           platform: ${{ matrix.platform }}
           release_tag: ${{ inputs.release_tag }}
-          checkout_ref: ${{ inputs.release_tag == 'unstable' && 'unstable' || '' }}
 
   run-smoke-tests:
     name: Test RPM (${{ matrix.distro }}${{ matrix.distro_version }}-${{ matrix.platform }})
@@ -66,11 +65,6 @@ jobs:
       matrix:
         include: ${{ fromJSON(inputs.TEST_OS) }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.release_tag == 'unstable' && 'unstable' || '' }}
-
       - name: Run smoke tests
         uses: ./.github/actions/run-smoke-tests
         with:
@@ -78,6 +72,5 @@ jobs:
           distro: ${{ matrix.distro }}
           distro_version: ${{ matrix.distro_version }}
           platform: ${{ matrix.platform }}
-          test_package_distro: ${{ matrix.test_package_distro }}
-          checkout_ref: ${{ inputs.release_tag == 'unstable' && 'unstable' || '' }}
+          test_artifact_name: ${{ matrix.test_artifact_name }}
 

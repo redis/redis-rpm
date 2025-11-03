@@ -23,6 +23,12 @@ runs:
       run: |
         echo "${{ github.token }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
+    # Spin up a container directly since we neither can use "container" option
+    # on job level (because it doesn't support external actions with file
+    # dependencies as "Ensure release branch") nor we have ready to use
+    # containerized action
+    # As a bonus side effect we use docker-builder wrapper shell to capture the
+    # output from exec commands into LOG_FILENAME
     - name: Start builder container
       shell: bash
       run: |
@@ -41,7 +47,6 @@ runs:
         echo LOG_FILENAME=$LOG_FILENAME >> $GITHUB_ENV
         mkdir -p logs
 
-
         dir=$(mktemp -d)
         cat > /$dir/docker-builder <<EOF
         #!/bin/bash
@@ -49,6 +54,8 @@ runs:
         EOF
         chmod 0755 $dir/docker-builder
         echo "$dir" >> $GITHUB_PATH
+        echo "docker-builder wrapper created in $dir:"
+        cat $dir/docker-builder
 
     - name: Determine version
       id: version
@@ -71,6 +78,7 @@ runs:
       id: build_redis
       shell: docker-builder {0}
       run: |
+        set -e
         # Source gcc-toolset-13 environment
         source /etc/profile.d/gcc-toolset-13.sh
         export BUILD_WITH_MODULES=yes
@@ -78,6 +86,8 @@ runs:
         export DISABLE_WERRORS=yes
         export BUILD_TLS=yes
         export USE_SYSTEMD=yes
+
+        makeerror
 
         if [ "${{ steps.version.outputs.VERSION }}" = "unstable" ]; then
           # Clone Redis unstable branch instead of downloading release tarball
