@@ -1,0 +1,52 @@
+name: "Update Redis version"
+description: "Updates .redis_version file with the release tag"
+
+inputs:
+  release_tag:
+    description: "Release tag to build"
+    required: true
+  release_version_branch:
+    description: "Release version branch to commit to"
+    required: true
+  release_type:
+    description: "Type of release (public, internal)"
+    required: true
+
+outputs:
+  changed_files:
+    description: "List of files that were modified"
+    value: ${{ steps.update-version.outputs.changed_files }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Update .redis_version file
+      id: update-version
+      shell: bash
+      run: |
+        # Skip version update for unstable builds
+        if [ "${{ inputs.release_tag }}" = "unstable" ]; then
+          echo "Skipping version update for unstable build"
+          echo "changed_files=" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        # Update .redis_version file
+        echo "${{ inputs.release_tag }}" > .redis_version
+
+        # Check if file was actually changed
+        if git diff --quiet .redis_version; then
+          echo "No changes to .redis_version"
+          echo "changed_files=" >> $GITHUB_OUTPUT
+        else
+          echo "Updated .redis_version to ${{ inputs.release_tag }}"
+          echo "changed_files=.redis_version" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create verified commit
+      if: steps.update-version.outputs.changed_files != ''
+      uses: iarekylew00t/verified-bot-commit@v1
+      with:
+        message: "Update Redis version to ${{ inputs.release_tag }}"
+        files: ${{ steps.update-version.outputs.changed_files }}
+        ref: ${{ inputs.release_version_branch }}
