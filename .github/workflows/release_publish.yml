@@ -142,8 +142,20 @@ jobs:
           path: result.json
           retention-days: 90
 
+      - name: Check Slack webhook availability
+        id: check-slack
+        shell: bash
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEB_HOOK_URL }}
+        run: |
+          if [ -n "$SLACK_WEBHOOK" ]; then
+            echo "enabled=true" >> $GITHUB_OUTPUT
+          else
+            echo "enabled=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Send Success Slack notification
-        if: secrets.SLACK_WEB_HOOK_URL != ''
+        if: steps.check-slack.outputs.enabled == 'true'
         uses: ./.github/actions/slack-notification
         with:
           slack_func: slack_format_success_message
@@ -154,7 +166,7 @@ jobs:
           SLACK_WEB_HOOK_URL: ${{ secrets.SLACK_WEB_HOOK_URL }}
 
       - name: Send Failure Slack notification
-        if: failure() && secrets.SLACK_WEB_HOOK_URL != ''
+        if: failure() && steps.check-slack.outputs.enabled == 'true'
         uses: ./.github/actions/slack-notification
         with:
           slack_func: slack_format_failure_message
