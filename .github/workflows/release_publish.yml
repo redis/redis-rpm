@@ -74,8 +74,8 @@ jobs:
         with:
           run_id: ${{ steps.parse-handle.outputs.run_id }}
           gh_token: ${{ secrets.GITHUB_TOKEN }}
-          GPG_KEY: ${{ secrets.GPG_KEY }}
-          GPG_PASSWORD: ${{ secrets.GPG_PASSWORD }}
+          GPG_KEY: ${{ secrets.GPG_KEY_STAGING }}
+          GPG_PASSWORD: ${{ secrets.GPG_PASSWORD_STAGING }}
           RPM_S3_BUCKET: ${{ secrets.RPM_S3_BUCKET_STAGING }}
           RPM_S3_REGION: ${{ secrets.RPM_S3_REGION_STAGING }}
           RPM_S3_IAM_ARN: ${{ secrets.RPM_S3_IAM_ARN_STAGING }}
