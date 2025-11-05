@@ -29,6 +29,8 @@ jobs:
       id-token: write
       # to merge changes into release
       contents: write
+      # to download artifacts from build workflow
+      actions: read
 
     steps:
       - name: Checkout code
@@ -141,7 +143,7 @@ jobs:
           retention-days: 90
 
       - name: Send Success Slack notification
-        if: vars.SLACK_WEB_HOOK_URL != ''
+        if: secrets.SLACK_WEB_HOOK_URL != ''
         uses: ./.github/actions/slack-notification
         with:
           slack_func: slack_format_success_message
@@ -152,7 +154,7 @@ jobs:
           SLACK_WEB_HOOK_URL: ${{ secrets.SLACK_WEB_HOOK_URL }}
 
       - name: Send Failure Slack notification
-        if: failure() && vars.SLACK_WEB_HOOK_URL != ''
+        if: failure() && secrets.SLACK_WEB_HOOK_URL != ''
         uses: ./.github/actions/slack-notification
         with:
           slack_func: slack_format_failure_message
