@@ -97,9 +97,17 @@ jobs:
         id: upload
         run: |
           if [ "${{ inputs.release_type }}" = "internal" ]; then
-            echo "packages_json=${{ steps.upload-internal.outputs.packages_json }}" >> $GITHUB_OUTPUT
+            cat <<OUTPUT | >> $GITHUB_OUTPUT
+            packages_json<<EOF
+            ${{ steps.upload-internal.outputs.packages_json }}
+            EOF
+            OUTPUT
           else
-            echo "packages_json=${{ steps.upload-public.outputs.packages_json }}" >> $GITHUB_OUTPUT
+            cat <<OUTPUT | >> $GITHUB_OUTPUT
+            packages_json<<EOF
+            ${{ steps.upload-public.outputs.packages_json }}
+            EOF
+            OUTPUT
           fi
 
       - name: Merge back to release branch
