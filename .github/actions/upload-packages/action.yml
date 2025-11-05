@@ -81,15 +81,15 @@ runs:
         GPG_PASSWORD: ${{ inputs.GPG_PASSWORD }}
       run: |
         mkdir -m 0700 -p ~/.gnupg
-        echo "$GPG_KEY" | gpg --import
+        echo "$GPG_KEY" | gpg --import --batch
 
         # Get GPG key ID
         GPG_ID=$(gpg --list-secret-keys --keyid-format LONG | grep sec | awk '{print $2}' | cut -d'/' -f2 | head -n1)
-        echo "GPG_ID=$GPG_ID" >> $GITHUB_ENV
+        echo "GPG_ID=$GPG_ID" | tee -a $GITHUB_ENV
 
         # Get keygrip for preset passphrase
         KEYGRIP=$(gpg --with-keygrip --list-secret-keys | grep -A 1 "^sec" | grep "Keygrip" | head -n1 | awk '{print $3}')
-        echo "KEYGRIP=$KEYGRIP" >> $GITHUB_ENV
+        echo "KEYGRIP=$KEYGRIP" | tee -a $GITHUB_ENV
 
         # Configure GPG for non-interactive signing
         echo "allow-preset-passphrase" >> ~/.gnupg/gpg-agent.conf
