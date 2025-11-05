@@ -88,7 +88,7 @@ runs:
         echo "GPG_ID=$GPG_ID" | tee -a $GITHUB_ENV
 
         # Get keygrip for preset passphrase
-        KEYGRIP=$(gpg --with-keygrip --list-secret-keys | grep -A 1 "^sec" | grep "Keygrip" | head -n1 | awk '{print $3}')
+        KEYGRIP=$(gpg --with-keygrip --with-colons --list-secret-keys "$GPG_ID" | awk -F: '/^grp:/ {print $10; exit}')
         echo "KEYGRIP=$KEYGRIP" | tee -a $GITHUB_ENV
 
         # Configure GPG for non-interactive signing
