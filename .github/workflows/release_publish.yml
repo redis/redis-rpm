@@ -151,6 +151,7 @@ jobs:
           retention-days: 90
 
       - name: Check Slack webhook availability
+        if: always()
         id: check-slack
         shell: bash
         env:
