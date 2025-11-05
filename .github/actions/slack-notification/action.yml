@@ -31,6 +31,11 @@ runs:
       if: inputs.slack_func == 'slack_format_success_message'
       shell: bash
       run: |
+        if [ -z "${{ inputs.SLACK_WEB_HOOK_URL }}" ]; then
+          echo "::warning::SLACK_WEB_HOOK_URL is not set, skipping Slack notification"
+          exit 0
+        fi
+
         workflow_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         footer="Repository: ${{ github.repository }} | Commit: \`${{ github.sha }}\` | View: <$workflow_url|workflow run>"
 
@@ -46,6 +51,11 @@ runs:
       if: inputs.slack_func == 'slack_format_failure_message'
       shell: bash
       run: |
+        if [ -z "${{ inputs.SLACK_WEB_HOOK_URL }}" ]; then
+          echo "::warning::SLACK_WEB_HOOK_URL is not set, skipping Slack notification"
+          exit 0
+        fi
+
         workflow_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         footer="Repository: ${{ github.repository }} | Commit: \`${{ github.sha }}\`"
 

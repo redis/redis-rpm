@@ -93,23 +93,6 @@ jobs:
           RPM_S3_REGION: ${{ secrets.RPM_S3_REGION }}
           RPM_S3_IAM_ARN: ${{ secrets.RPM_S3_IAM_ARN }}
 
-      - name: Set upload output
-        id: upload
-        run: |
-          if [ "${{ inputs.release_type }}" = "internal" ]; then
-            cat <<OUTPUT | >> $GITHUB_OUTPUT
-            packages_json<<EOF
-            ${{ steps.upload-internal.outputs.packages_json }}
-            EOF
-            OUTPUT
-          else
-            cat <<OUTPUT | >> $GITHUB_OUTPUT
-            packages_json<<EOF
-            ${{ steps.upload-public.outputs.packages_json }}
-            EOF
-            OUTPUT
-          fi
-
       - name: Merge back to release branch
         id: merge-back
         # merge only public releases into mainline
@@ -131,7 +114,7 @@ jobs:
       - name: Create Release info
         shell: bash
         run: |
-          cat <<JQ > jq
+          cat <<JQ > jqexpr
           {
             release_tag: "${{ github.event.inputs.release_tag }}",
             release_type: "${{ github.event.inputs.release_type }}",
@@ -139,8 +122,8 @@ jobs:
             packages: .
           }
           JQ
-          cat <<RESULT | jq -f jq >result.json
-          ${{ steps.upload.outputs.packages_json }}
+          cat <<RESULT | jq -f jqexpr >result.json
+          ${{ inputs.release_type == 'internal' && steps.upload-internal.outputs.packages_json || steps.upload-public.outputs.packages_json }}
           RESULT
 
       - name: Upload publish result artifact
@@ -150,32 +133,18 @@ jobs:
           path: result.json
           retention-days: 90
 
-      - name: Check Slack webhook availability
-        if: always()
-        id: check-slack
-        shell: bash
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEB_HOOK_URL }}
-        run: |
-          if [ -n "$SLACK_WEBHOOK" ]; then
-            echo "enabled=true" >> $GITHUB_OUTPUT
-          else
-            echo "enabled=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Send Success Slack notification
-        if: steps.check-slack.outputs.enabled == 'true'
         uses: ./.github/actions/slack-notification
         with:
           slack_func: slack_format_success_message
           release_tag: ${{ github.event.inputs.release_tag }}
           url_prefix: ${{ steps.validate-inputs.outputs.url_prefix }}
           env: ${{ steps.validate-inputs.outputs.env_name }}
-          packages_json: ${{ steps.upload.outputs.packages_json }}
+          packages_json: ${{ inputs.release_type == 'internal' && steps.upload-internal.outputs.packages_json || steps.upload-public.outputs.packages_json }}
           SLACK_WEB_HOOK_URL: ${{ secrets.SLACK_WEB_HOOK_URL }}
 
       - name: Send Failure Slack notification
-        if: failure() && steps.check-slack.outputs.enabled == 'true'
+        if: failure()
         uses: ./.github/actions/slack-notification
         with:
           slack_func: slack_format_failure_message
