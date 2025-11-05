@@ -169,9 +169,3 @@ runs:
       with:
         name: rpm-${{ inputs.distro }}${{ inputs.distro_version }}-${{ inputs.platform }}
         path: dist/*.rpm
-
-    - name: Cleanup
-      shell: bash
-      if: always()
-      run: |
-        rm -rf redis redis-*.tar.gz
