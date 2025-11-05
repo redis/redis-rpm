@@ -49,6 +49,10 @@ runs:
         fi
         echo "Will download artifacts from workflow with Run ID: ${{ inputs.run_id }}"
 
+        if [ -z "${{ inputs.GPG_KEY }}" ] || [ -z "${{ inputs.GPG_PASSWORD }}" ]; then
+          echo "::warning::GPG key and password not provided, proceeding without GPG signing"
+        fi
+
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
@@ -71,6 +75,7 @@ runs:
 
     - name: Setup GPG key
       shell: bash
+      if: inputs.GPG_KEY != '' && inputs.GPG_PASSWORD != ''
       env:
         GPG_KEY: ${{ inputs.GPG_KEY }}
         GPG_PASSWORD: ${{ inputs.GPG_PASSWORD }}
@@ -95,6 +100,7 @@ runs:
 
     - name: Organize and sign RPM packages
       shell: bash
+      if: inputs.GPG_KEY != '' && inputs.GPG_PASSWORD != ''
       run: |
         # Create directory structure for each distro/version combination
         mkdir -p combined-rpms
@@ -188,4 +194,3 @@ runs:
         echo "packages_json<<EOF" >> $GITHUB_OUTPUT
         echo "$packages_json" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
-
