@@ -4,12 +4,12 @@ slack_format_success_message() {
 jq --arg release_tag "$1" --arg url_prefix "$2" --arg footer "$3" --arg env "$4" '
 {
   "icon_emoji": ":redis-circle:",
-  "text": (":package: RPM Packages Published for Redis: " + $release_tag + " (" + $env + ")"),
+  "text": (":redhat: RPM Packages Published for Redis: " + $release_tag + " (" + $env + ")"),
   "blocks": (
     [
       {
         "type": "header",
-        "text": { "type": "plain_text", "text": (":package: RPM Packages Published for Release " + $release_tag + " (" + $env + ")") }
+        "text": { "type": "plain_text", "text": (":redhat: RPM Packages Published for Release " + $release_tag + " (" + $env + ")") }
       },
       {
         "type": "section",
@@ -21,20 +21,27 @@ jq --arg release_tag "$1" --arg url_prefix "$2" --arg footer "$3" --arg env "$4"
     ] +
     (
       to_entries
-      | map({
-          "type": "section",
-          "text": {
-            "type": "mrkdwn",
-            "text": (
-              "Distribution: *" + .key + "*\n" +
-              (
-                .value
-                | map("• " + .)
-                | join("\n")
-              )
+      | map(
+          .key as $dist | .value | to_entries
+          | map(
+              .key as $platform | .value as $packages |
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": (
+                    "Distribution: *" + $dist + "* (" + $platform + ")\n" +
+                    (
+                      $packages
+                      | map("• <" + $url_prefix + "/" + $dist + "/" + $platform + "/" + . + "|" + . + ">")
+                      | join("\n")
+                    )
+                  )
+                }
+              }
             )
-          }
-        })
+        )
+      | flatten
     ) +
     [
       {

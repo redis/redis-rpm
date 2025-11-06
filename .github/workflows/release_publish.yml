@@ -74,8 +74,8 @@ jobs:
         with:
           run_id: ${{ steps.parse-handle.outputs.run_id }}
           gh_token: ${{ secrets.GITHUB_TOKEN }}
-          GPG_KEY: ${{ secrets.GPG_KEY_STAGING }}
-          GPG_PASSWORD: ${{ secrets.GPG_PASSWORD_STAGING }}
+          GPG_KEY: ${{ secrets.GPG_KEY_STAGING || secrets.GPG_KEY }}
+          GPG_PASSWORD: ${{ secrets.GPG_PASSWORD_STAGING || secrets.GPG_PASSWORD }}
           RPM_S3_BUCKET: ${{ secrets.RPM_S3_BUCKET_STAGING }}
           RPM_S3_REGION: ${{ secrets.RPM_S3_REGION_STAGING }}
           RPM_S3_IAM_ARN: ${{ secrets.RPM_S3_IAM_ARN_STAGING }}
@@ -150,8 +150,8 @@ jobs:
           slack_func: slack_format_failure_message
           release_tag: ${{ github.event.inputs.release_tag }}
           env: ${{ steps.validate-inputs.outputs.env_name }}
-          url_prefix: ""
+          url_prefix: "${{ steps.validate-inputs.outputs.url_prefix }}"
           packages_json: "{}"
-          message: ":package: RPM package upload failed"
+          message: ":redhat: RPM packages upload failed"
           SLACK_WEB_HOOK_URL: ${{ secrets.SLACK_WEB_HOOK_URL }}
 
