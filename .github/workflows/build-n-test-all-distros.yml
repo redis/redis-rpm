@@ -1,0 +1,83 @@
+name: Build and Test All Distros
+
+# This reusable workflow implements build and test workflow part and is for
+# calling from release automation and regular PR/push builds.
+#
+# It handles release_tag values, including empty one (empty means PR/push build)
+# and unstable.
+#
+# Unstable run requires explicit switching to unstable branch in each job and
+# action because the schedule is initiated from master branch but the target
+# branch should be unstable branch. This is also handled here.
+
+on:
+  workflow_call:
+    inputs:
+      release_tag:
+        type: string
+        description: "Release tag (version or 'unstable')"
+      BUILD_OS:
+        type: string
+        description: "JSON array of build configurations"
+      TEST_OS:
+        type: string
+        description: "JSON array of test configurations"
+
+jobs:
+  build-package:
+    name: Build RPM (${{ matrix.distro }}${{ matrix.distro_version }}-${{ matrix.platform }})
+    runs-on: ${{ matrix.platform == 'arm64' && 'ubuntu24-arm64-2-8' || 'ubuntu-latest' }}
+    outputs:
+      release_version_branch: ${{ steps.ensure-branch.outputs.release_version_branch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.BUILD_OS) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag == 'unstable' && 'unstable' || '' }}
+
+      - name: Ensure Release Branch
+        if: inputs.release_tag != '' && inputs.release_tag != 'unstable'
+        id: ensure-branch
+        uses: redis-developer/redis-oss-release-automation/.github/actions/ensure-release-branch@main
+        with:
+          release_tag: ${{ inputs.release_tag }}
+          allow_modify: false
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build package
+        uses: ./.github/actions/build-package
+        with:
+          distro: ${{ matrix.distro }}
+          distro_version: ${{ matrix.distro_version }}
+          platform: ${{ matrix.platform }}
+          release_tag: ${{ inputs.release_tag }}
+
+  run-smoke-tests:
+    name: Test RPM (${{ matrix.distro }}${{ matrix.distro_version }}-${{ matrix.platform }})
+    runs-on: ${{ matrix.platform == 'arm64' && 'ubuntu24-arm64-2-8' || 'ubuntu-latest' }}
+    container:
+      image: "${{ matrix.distro }}:${{ matrix.distro_version }}"
+    needs: build-package
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.TEST_OS) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag == 'unstable' && 'unstable' || (inputs.release_tag != '' && needs.build-package.outputs.release_version_branch || '') }}
+
+      - name: Run smoke tests
+        uses: ./.github/actions/run-smoke-tests
+        with:
+          run_id: ${{ github.run_id }}
+          distro: ${{ matrix.distro }}
+          distro_version: ${{ matrix.distro_version }}
+          platform: ${{ matrix.platform }}
+          test_artifact_name: ${{ matrix.test_artifact_name }}
+

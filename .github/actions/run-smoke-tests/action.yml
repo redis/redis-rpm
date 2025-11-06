@@ -1,0 +1,147 @@
+name: "Run smoke tests"
+description: "Runs smoke tests for Redis RPM package"
+
+inputs:
+  run_id:
+    description: "Run ID to download artifacts from"
+    required: true
+  distro:
+    description: "Distribution name (e.g., rockylinux, almalinux)"
+    required: true
+  distro_version:
+    description: "Distribution version (e.g., 8, 9)"
+    required: true
+  platform:
+    description: "Platform/architecture (e.g., amd64, arm64)"
+    required: true
+  test_artifact_name:
+    description: "Artifact name to download (e.g., rpm-rockylinux9-amd64)"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Download RPM artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.test_artifact_name }}
+        run-id: ${{ inputs.run_id }}
+        path: ./rpm
+
+    - name: Setup systemctl replacement
+      shell: bash
+      run: |
+        # Install curl if not present
+        dnf install -y --allowerasing curl python3
+
+        # Download systemctl replacement first as .py file
+        curl -L https://raw.githubusercontent.com/gdraheim/docker-systemctl-replacement/master/files/docker/systemctl3.py -o /usr/bin/systemctl3.py
+
+        pythonpath="/usr/bin/python3"
+        # Create wrapper script with correct shebang
+        echo "#!$pythonpath" > /usr/bin/systemctl
+        cat /usr/bin/systemctl3.py >> /usr/bin/systemctl
+        chmod +x /usr/bin/systemctl
+
+        # Create required systemd directory structure
+        mkdir -p /run/systemd/system/
+
+    - name: Install RPM dependencies
+      shell: bash
+      run: |
+        dnf install -y ./rpm/*.rpm || true
+        systemctl enable redis
+        systemctl start redis
+
+    - name: Basic Sanity Tests
+      shell: bash
+      run: |
+        for i in {1..5}; do redis-cli ping &>/dev/null && break || echo "Waiting for Redis... $i" && sleep 1; done
+        redis-cli info server || { echo "Cannot get server info"; cat "/var/log/redis/redis-server.log"; exit 112; }
+
+    - name: Verify installed modules
+      shell: bash
+      run: |
+        modules=$(redis-cli module list)
+        echo "Installed modules:"
+        echo "$modules"
+        missing_modules=()
+        for module in "bf" "search" "timeseries" "ReJSON"; do
+          if ! echo "$modules" | grep -q "$module"; then
+            missing_modules+=("$module")
+          fi
+        done
+        if [ ${#missing_modules[@]} -eq 0 ]; then
+          echo "All required modules are installed"
+        else
+          echo "The following modules are missing: ${missing_modules[*]}"
+          exit 1
+        fi
+
+    - name: Test RedisBloom
+      shell: bash
+      run: |
+        redis-cli BF.ADD popular_keys "redis:hash"
+        redis-cli BF.ADD popular_keys "redis:set"
+        [ "$(redis-cli BF.EXISTS popular_keys "redis:hash")" = "1" ] || { echo "RedisBloom test failed: redis:hash not found"; exit 1; }
+        [ "$(redis-cli BF.EXISTS popular_keys "redis:list")" = "0" ] || { echo "RedisBloom test failed: redis:list found unexpectedly"; exit 1; }
+        echo "RedisBloom test passed successfully"
+
+    - name: Test RediSearch
+      shell: bash
+      run: |
+        redis-cli FT.CREATE redis_commands ON HASH PREFIX 1 cmd: SCHEMA name TEXT SORTABLE description TEXT
+        redis-cli HSET cmd:set name "SET" description "Set the string value of a key"
+        redis-cli HSET cmd:get name "GET" description "Get the value of a key"
+        result=$(redis-cli FT.SEARCH redis_commands "value")
+        if echo "$result" | grep -q "Set the string value of a key" && \
+           echo "$result" | grep -q "Get the value of a key"; then
+          echo "RediSearch test passed successfully"
+        else
+          echo "RediSearch test failed: expected commands not found"
+          exit 1
+        fi
+
+    - name: Test RedisTimeSeries
+      shell: bash
+      run: |
+        redis-cli TS.CREATE redis:cpu:usage RETENTION 86400
+        redis-cli TS.ADD redis:cpu:usage "*" 80
+        redis-cli TS.ADD redis:cpu:usage "*" 65
+        redis-cli TS.ADD redis:cpu:usage "*" 70
+        result=$(redis-cli TS.RANGE redis:cpu:usage - + COUNT 3)
+        if echo "$result" | grep -q "80" && \
+           echo "$result" | grep -q "65" && \
+           echo "$result" | grep -q "70"; then
+          echo "RedisTimeSeries test passed successfully"
+        else
+          echo "RedisTimeSeries test failed"
+          exit 1
+        fi
+
+    - name: Test ReJSON
+      shell: bash
+      run: |
+        redis-cli  JSON.SET redis:config $ '{"maxmemory":"2gb","maxmemory-policy":"allkeys-lru"}'
+        result=$(redis-cli JSON.GET redis:config $.maxmemory-policy)
+        cleaned_result=$(echo $result | tr -d "[]\"")
+        if [ "$cleaned_result" = "allkeys-lru" ]; then
+          echo "ReJSON test passed successfully"
+        else
+          echo "ReJSON test failed: expected allkeys-lru, got $result"
+          exit 1
+        fi
+
+    - name: Test redis-sentinel
+      shell: bash
+      run: |
+        # Test that redis-sentinel binary exists and is executable
+        if command -v redis-sentinel &> /dev/null; then
+          echo "redis-sentinel is installed"
+          redis-sentinel --version || { echo "redis-sentinel version check failed"; exit 1; }
+          echo "redis-sentinel test passed successfully"
+        else
+          echo "redis-sentinel is not installed"
+          exit 1
+        fi
+
