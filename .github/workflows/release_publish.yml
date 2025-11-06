@@ -53,6 +53,13 @@ jobs:
           echo "env_name=$env_name" >> $GITHUB_OUTPUT
           echo "url_prefix=$url_prefix" >> $GITHUB_OUTPUT
 
+          if [ "${{ inputs.release_type }}" = "public" ]; then
+            if [ -z "${{ secrets.GPG_KEY }}" ] || [ -z "${{ secrets.GPG_PASSWORD }}" ]; then
+              echo "::error::GPG_KEY is not set, refuse to proceed with production release"
+              exit 1
+            fi
+          fi
+
       - name: Ensure Release Branch
         id: ensure-branch
         uses: redis-developer/redis-oss-release-automation/.github/actions/ensure-release-branch@main

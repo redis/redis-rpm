@@ -51,7 +51,11 @@ runs:
       run: |
         dnf install -y ./rpm/*.rpm || true
         systemctl enable redis
-        systemctl start redis
+        if ! systemctl start redis; then
+          echo "Failed to start Redis service"
+          cat /var/log/redis/redis-server.log
+          exit 1
+        fi
 
     - name: Basic Sanity Tests
       shell: bash
