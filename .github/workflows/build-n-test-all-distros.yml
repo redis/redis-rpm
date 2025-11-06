@@ -30,6 +30,7 @@ jobs:
 
   build-package:
     name: Build RPM (${{ matrix.distro }}${{ matrix.distro_version }}-${{ matrix.platform }})
+    needs: build-containers
     runs-on: ${{ matrix.platform == 'arm64' && 'ubuntu24-arm64-2-8' || 'ubuntu-latest' }}
     outputs:
       release_version_branch: ${{ steps.ensure-branch.outputs.release_version_branch }}
