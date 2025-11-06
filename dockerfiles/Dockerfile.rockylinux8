@@ -23,7 +23,6 @@ RUN dnf install -y --nobest --skip-broken \
     python3.11-devel \
     unzip \
     rsync \
-    llvm \
     curl \
     libtool \
     automake \

@@ -21,7 +21,6 @@ RUN echo '[goreleaser]\nname=GoReleaser\nbaseurl=https://repo.goreleaser.com/yum
     python3-devel \
     unzip \
     rsync \
-    llvm \
     curl \
     libtool \
     automake \
