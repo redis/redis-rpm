@@ -14,7 +14,6 @@ RUN dnf install -y --nobest --skip-broken \
     wget \
     gcc-toolset-13-gcc \
     gcc-toolset-13-gcc-c++ \
-    clang \
     git \
     make \
     openssl \
