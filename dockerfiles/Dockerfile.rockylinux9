@@ -12,6 +12,7 @@ RUN echo '[goreleaser]\nname=GoReleaser\nbaseurl=https://repo.goreleaser.com/yum
     which \
     gcc-toolset-13-gcc \
     gcc-toolset-13-gcc-c++ \
+    clang \
     git \
     make \
     openssl \
@@ -21,7 +22,6 @@ RUN echo '[goreleaser]\nname=GoReleaser\nbaseurl=https://repo.goreleaser.com/yum
     python3-devel \
     unzip \
     rsync \
-    clang \
     curl \
     libtool \
     automake \

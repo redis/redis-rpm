@@ -1,0 +1,55 @@
+name: "Parse env file"
+description: "Parses .env.json file and extracts build/test matrices as outputs"
+
+inputs:
+  env_file_path:
+    description: ".env.json file path"
+    default: '.github/.env.json'
+    required: false
+
+outputs:
+  BUILD_CONTAINER_OS:
+    description: "JSON array of {distro, distro_version, platform} where build_container: true"
+    value: ${{ steps.parse.outputs.BUILD_CONTAINER_OS }}
+  BUILD_OS:
+    description: "JSON array of {distro, distro_version, platform} where build: true"
+    value: ${{ steps.parse.outputs.BUILD_OS }}
+  TEST_OS:
+    description: "JSON array of {distro, distro_version, platform, test_artifact_name} where test: true"
+    value: ${{ steps.parse.outputs.TEST_OS }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Parse env file
+      id: parse
+      shell: bash
+      run: |
+        # Read and parse .env.json file
+        env_file="${{ inputs.env_file_path }}"
+
+        if [ ! -f "$env_file" ]; then
+          echo "Error: $env_file not found"
+          exit 1
+        fi
+
+        # Validate JSON
+        if ! jq . "$env_file" >/dev/null 2>&1; then
+          echo "Error: $env_file is not valid JSON"
+          exit 1
+        fi
+
+        # Extract BUILD_CONTAINER_OS
+        BUILD_CONTAINER_OS=$(jq -c '[.[] | select(.build_container == true) | {distro, distro_version, platform}]' "$env_file")
+        echo "BUILD_CONTAINER_OS=$BUILD_CONTAINER_OS" >> $GITHUB_OUTPUT
+        echo "BUILD_CONTAINER_OS: $BUILD_CONTAINER_OS"
+
+        # Extract BUILD_OS
+        BUILD_OS=$(jq -c '[.[] | select(.build == true) | {distro, distro_version, platform}]' "$env_file")
+        echo "BUILD_OS=$BUILD_OS" >> $GITHUB_OUTPUT
+        echo "BUILD_OS: $BUILD_OS"
+
+        # Extract TEST_OS (include test_artifact_name)
+        TEST_OS=$(jq -c '[.[] | select(.test == true) | {distro, distro_version, platform, test_artifact_name}]' "$env_file")
+        echo "TEST_OS=$TEST_OS" >> $GITHUB_OUTPUT
+        echo "TEST_OS: $TEST_OS"
