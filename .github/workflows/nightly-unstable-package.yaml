@@ -2,7 +2,7 @@ name: Nightly Unstable Build and Package
 
 on:
   schedule:
-    - cron: '30 13 * * *'  # Run at 1:00 AM UTC every day
+    - cron: '30 14 * * *'  # Run at 1:00 AM UTC every day
   workflow_dispatch:  # Allow manual triggering
 
 jobs:
