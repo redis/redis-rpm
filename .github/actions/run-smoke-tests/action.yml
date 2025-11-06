@@ -32,7 +32,7 @@ runs:
       shell: bash
       run: |
         # Install curl if not present
-        dnf install -y --allowerasing curl python3
+        dnf install -y --allowerasing curl python3 jq
 
         # Download systemctl replacement first as .py file
         curl -L https://raw.githubusercontent.com/gdraheim/docker-systemctl-replacement/master/files/docker/systemctl3.py -o /usr/bin/systemctl3.py

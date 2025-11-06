@@ -2,7 +2,16 @@ name: Build Workflow Containers
 
 on:
   workflow_call:
+    inputs:
+      checkout_ref:
+        type: string
+        description: "Ref to checkout (usually github.ref)"
   workflow_dispatch:
+    inputs:
+      checkout_ref:
+        type: string
+        description: "Ref to checkout (usually github.ref)"
+        required: false
 
 permissions:
   packages: write
@@ -18,6 +27,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref }}
 
       - name: Parse vars
         id: parse
@@ -34,6 +45,8 @@ jobs:
         include: ${{ fromJSON(needs.populate-env-vars.outputs.BUILD_CONTAINER_OS) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
