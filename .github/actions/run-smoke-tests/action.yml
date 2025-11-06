@@ -32,7 +32,7 @@ runs:
       shell: bash
       run: |
         # Install curl if not present
-        dnf install -y --allowerasing curl python3
+        dnf install -y --allowerasing curl python3 jq
 
         # Download systemctl replacement first as .py file
         curl -L https://raw.githubusercontent.com/gdraheim/docker-systemctl-replacement/master/files/docker/systemctl3.py -o /usr/bin/systemctl3.py
@@ -62,19 +62,14 @@ runs:
     - name: Verify installed modules
       shell: bash
       run: |
-        modules=$(redis-cli module list)
-        echo "Installed modules:"
-        echo "$modules"
-        missing_modules=()
-        for module in "bf" "search" "timeseries" "ReJSON"; do
-          if ! echo "$modules" | grep -q "$module"; then
-            missing_modules+=("$module")
-          fi
-        done
-        if [ ${#missing_modules[@]} -eq 0 ]; then
+        modules=$(redis-cli --json module list | jq .)
+        echo "Installed modules: $modules"
+        expected_modules="search vectorset timeseries bf ReJSON"
+        missing_modules=$(echo "$modules" | jq --arg modules "$expected_modules" '($modules | split(" ")) - map(.name)')
+        if echo "$missing_modules" | jq -e 'length == 0'; then
           echo "All required modules are installed"
         else
-          echo "The following modules are missing: ${missing_modules[*]}"
+          echo "The following modules are missing: $missing_modules"
           exit 1
         fi
 
