@@ -57,7 +57,7 @@ runs:
       shell: bash
       run: |
         for i in {1..5}; do redis-cli ping &>/dev/null && break || echo "Waiting for Redis... $i" && sleep 1; done
-        redis-cli info server || { echo "Cannot get server info"; exit 1; }
+        redis-cli info server || { echo "Cannot get server info"; cat "/var/log/redis/redis-server.log"; exit 112; }
 
     - name: Verify installed modules
       shell: bash
