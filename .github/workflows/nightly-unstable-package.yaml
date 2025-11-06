@@ -7,4 +7,6 @@ on:
 
 jobs:
   call-unstable-build:
-    uses: redislabsdev/redis-rpm/.github/workflows/rpm.yml@unstable
+    # avoid running in forks
+    if: github.repository == 'redis/redis-rpm'
+    uses: redis/redis-rpm/.github/workflows/rpm.yml@unstable
