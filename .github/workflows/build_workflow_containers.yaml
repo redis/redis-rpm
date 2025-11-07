@@ -3,9 +3,15 @@ name: Build Workflow Containers
 on:
   workflow_call:
     inputs:
-      os:
-        required: true
+      checkout_ref:
         type: string
+        description: "Ref to checkout (usually github.ref)"
+  workflow_dispatch:
+    inputs:
+      checkout_ref:
+        type: string
+        description: "Ref to checkout (usually github.ref)"
+        required: false
 
 permissions:
   packages: write
@@ -16,13 +22,31 @@ env:
   IMAGE_NAME: ${{ github.repository }}/builder
 
 jobs:
+  populate-env-vars:
+    runs-on: ["ubuntu-latest"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref }}
+
+      - name: Parse vars
+        id: parse
+        uses: ./.github/actions/parse-env-file
+    outputs:
+      BUILD_CONTAINER_OS: ${{ steps.parse.outputs.BUILD_CONTAINER_OS }}
+
   build:
+    needs: populate-env-vars
     runs-on: ${{ matrix.platform == 'arm64' && 'ubuntu24-arm64-2-8' || 'ubuntu-latest' }}
     strategy:
+      fail-fast: false
       matrix:
-        platform: [amd64, arm64]
+        include: ${{ fromJSON(needs.populate-env-vars.outputs.BUILD_CONTAINER_OS) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -43,25 +67,45 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ inputs.os }}
-            type=raw,value=${{ inputs.os }}-${{ github.sha }}
-            type=raw,value=${{ inputs.os }}-${{ matrix.platform }}
+            type=raw,value=${{ matrix.distro }}${{ matrix.distro_version }}
+            type=raw,value=${{ matrix.distro }}${{ matrix.distro_version }}-${{ github.sha }}
+            type=raw,value=${{ matrix.distro }}${{ matrix.distro_version }}-${{ matrix.platform }}
 
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: dockerfiles/Dockerfile.${{ inputs.os }}
+          file: dockerfiles/Dockerfile.${{ matrix.distro }}${{ matrix.distro_version }}
           platforms: linux/${{ matrix.platform }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache.${{ inputs.os }}.${{ matrix.platform }}
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache.${{ inputs.os }}.${{ matrix.platform }},mode=max
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache.${{ matrix.distro }}${{ matrix.distro_version }}.${{ matrix.platform }}
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache.${{ matrix.distro }}${{ matrix.distro_version }}.${{ matrix.platform }},mode=max
+
+  get-unique-distros:
+    needs: populate-env-vars
+    runs-on: ubuntu-latest
+    outputs:
+      unique_distros: ${{ steps.get-unique.outputs.unique_distros }}
+    steps:
+      - name: Get unique distro+version combinations
+        id: get-unique
+        run: |
+          # Extract unique distro+version combinations from BUILD_CONTAINER_OS
+          unique_distros=$(echo '${{ needs.populate-env-vars.outputs.BUILD_CONTAINER_OS }}' | \
+            jq -c '[.[] | {distro, distro_version}] | unique')
+          echo "unique_distros=$unique_distros" >> $GITHUB_OUTPUT
 
   merge-manifests:
-    needs: build
+    needs:
+      - get-unique-distros
+      - build
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.get-unique-distros.outputs.unique_distros) }}
     steps:
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -72,6 +116,10 @@ jobs:
 
       - name: Merge manifests
         run: |
-          docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.os }} \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.os }}-amd64 \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.os }}-arm64
+          # Get unique distro+version combinations
+          distro_version="${{ matrix.distro }}${{ matrix.distro_version }}"
+
+          # Create multi-arch manifest
+          docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${distro_version} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${distro_version}-amd64 \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${distro_version}-arm64
