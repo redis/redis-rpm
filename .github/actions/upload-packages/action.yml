@@ -1,0 +1,219 @@
+name: "Upload RPM packages to S3"
+description: "Downloads RPM artifacts, signs them, creates repository metadata, and uploads to S3"
+
+inputs:
+  run_id:
+    description: "Run ID to download artifacts from"
+    required: true
+  gh_token:
+    description: "GitHub token"
+    required: true
+  GPG_KEY:
+    description: "GPG signing key"
+    required: true
+  GPG_PASSWORD:
+    description: "GPG password"
+    required: true
+  RPM_S3_BUCKET:
+    description: "S3 bucket to upload to"
+    required: true
+  RPM_S3_REGION:
+    description: "S3 region"
+    required: true
+  RPM_S3_IAM_ARN:
+    description: "IAM role ARN for authentication"
+    required: true
+
+outputs:
+  packages_json:
+    description: "JSON structure of uploaded packages"
+    value: ${{ steps.create-json.outputs.packages_json }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Validate inputs
+      shell: bash
+      run: |
+        if [ -z "${{ inputs.run_id }}" ]; then
+          echo "Missing required input: run_id"
+          exit 1
+        fi
+        if [ -z "${{ inputs.RPM_S3_BUCKET }}" ] || [ -z "${{ inputs.RPM_S3_REGION }}" ]; then
+          echo "Missing required inputs for S3 bucket and region"
+          exit 1
+        fi
+        if [ -z "${{ inputs.RPM_S3_IAM_ARN }}" ]; then
+          echo "Missing required input: RPM_S3_IAM_ARN"
+          exit 1
+        fi
+        echo "Will download artifacts from workflow with Run ID: ${{ inputs.run_id }}"
+
+        if [ -z "${{ inputs.GPG_KEY }}" ] || [ -z "${{ inputs.GPG_PASSWORD }}" ]; then
+          echo "::warning::GPG key and password not provided, proceeding without GPG signing"
+        fi
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ inputs.RPM_S3_IAM_ARN }}
+        aws-region: ${{ inputs.RPM_S3_REGION }}
+
+    - name: Download all RPM artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: rpm-*
+        path: all-rpms
+        run-id: ${{ inputs.run_id }}
+        github-token: ${{ inputs.gh_token }}
+
+    - name: Install required tools
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gnupg2 rpm s3cmd createrepo-c
+
+    - name: Setup GPG key
+      shell: bash
+      if: inputs.GPG_KEY != '' && inputs.GPG_PASSWORD != ''
+      env:
+        GPG_KEY: ${{ inputs.GPG_KEY }}
+        GPG_PASSWORD: ${{ inputs.GPG_PASSWORD }}
+      run: |
+        mkdir -m 0700 -p ~/.gnupg
+        echo "$GPG_KEY" | gpg --import --batch
+
+        # Get GPG key ID
+        GPG_ID=$(gpg --list-secret-keys --keyid-format LONG | grep sec | awk '{print $2}' | cut -d'/' -f2 | head -n1)
+        echo "GPG_ID=$GPG_ID" | tee -a $GITHUB_ENV
+
+        # Get keygrip for preset passphrase
+        KEYGRIP=$(gpg --with-keygrip --with-colons --list-secret-keys "$GPG_ID" | awk -F: '/^grp:/ {print $10; exit}')
+        echo "KEYGRIP=$KEYGRIP" | tee -a $GITHUB_ENV
+
+        # Configure GPG for non-interactive signing
+        echo "allow-preset-passphrase" >> ~/.gnupg/gpg-agent.conf
+        gpg-connect-agent reloadagent /bye
+
+        # Preset passphrase for non-interactive signing
+        /usr/lib/gnupg/gpg-preset-passphrase -P "$GPG_PASSWORD" -c "$KEYGRIP"
+
+    - name: Organize and sign RPM packages
+      shell: bash
+      run: |
+        # Create directory structure for each distro/version combination
+        mkdir -p combined-rpms
+
+        # Process each artifact directory
+        for artifact_dir in all-rpms/rpm-*; do
+          if [ -d "$artifact_dir" ]; then
+            # Extract distro info from artifact name
+            # Format: rpm-{distro}{distro_version}-{platform}
+            artifact_name=$(basename "$artifact_dir")
+            # Remove "rpm-" prefix
+            name_without_prefix="${artifact_name#rpm-}"
+
+            # Extract distro, version, and platform (e.g., rockylinux9-arm64 -> rockylinux, 9, arm64)
+            if [[ "$name_without_prefix" =~ ^([a-z]+)([0-9]+)-([a-z0-9]+)$ ]]; then
+              distro="${BASH_REMATCH[1]}"
+              version="${BASH_REMATCH[2]}"
+              platform="${BASH_REMATCH[3]}"
+
+              # Create directory for this distro/version/platform
+              mkdir -p "combined-rpms/${distro}${version}/${platform}"
+
+              # Copy RPMs to combined directory
+              cp "$artifact_dir"/*.rpm "combined-rpms/${distro}${version}/${platform}/" 2>/dev/null || true
+
+              echo "Copied packages from $artifact_name to combined-rpms/${distro}${version}/${platform}/"
+            else
+              echo "Warning: Could not parse artifact name: $artifact_name"
+            fi
+          fi
+        done
+
+        # Sign all RPM packages
+        if [ -n "${{ inputs.GPG_KEY }}"] && [ -n "${{ inputs.GPG_PASSWORD }}" ]; then
+          echo "Signing RPM packages..."
+          find combined-rpms -name "*.rpm" -exec rpmsign --addsign --key-id "$GPG_ID" {} \;
+          echo "Signed packages:"
+        else
+          echo "GPG key and password not provided, skipping signing"
+          echo "Unsigned packages:"
+        fi
+
+        find combined-rpms -name "*.rpm" | sort
+
+    - name: Prepare repository structure and upload
+      shell: bash
+      env:
+        RPM_S3_BUCKET: ${{ inputs.RPM_S3_BUCKET }}
+        RPM_S3_REGION: ${{ inputs.RPM_S3_REGION }}
+      run: |
+        # Process each distro/version directory
+        for distro_dir in combined-rpms/*; do
+          if [ -d "$distro_dir" ]; then
+            distro_version=$(basename "$distro_dir")
+
+            echo "Processing $distro_version..."
+
+            # Create directory for S3 upload
+            mkdir -p "s3uploads/$distro_version"
+
+            # Download existing packages from S3
+            echo "Downloading existing packages from S3..."
+            s3cmd sync --region="$RPM_S3_REGION" \
+              "s3://$RPM_S3_BUCKET/rpm/$distro_version/" \
+              "s3uploads/$distro_version/" || true
+
+            # Copy newly signed packages
+            echo "Adding newly signed packages..."
+            cp -r "$distro_dir"/* "s3uploads/$distro_version/"
+
+            # Create repository metadata
+            echo "Generating repository metadata..."
+            cd "s3uploads/$distro_version"
+            createrepo_c .
+            cd ../..
+
+            # Upload to S3
+            echo "Uploading repository to S3..."
+            s3cmd sync --acl-public --no-delete-removed --region="$RPM_S3_REGION" \
+              "s3uploads/$distro_version/" \
+              "s3://$RPM_S3_BUCKET/rpm/$distro_version/"
+
+            echo "Repository update complete for $distro_version"
+          fi
+        done
+
+    - name: Create packages JSON output
+      id: create-json
+      shell: bash
+      run: |
+        packages_json='{}'
+
+        # Process each distro/version directory
+        for distro_dir in combined-rpms/*; do
+          if [ -d "$distro_dir" ]; then
+            distro_version=$(basename "$distro_dir")
+
+            # Process each platform directory within distro/version
+            for platform_dir in "$distro_dir"/*; do
+              if [ -d "$platform_dir" ]; then
+                platform=$(basename "$platform_dir")
+
+                # Get list of RPM files in this platform directory
+                packages=$(find "$platform_dir" -name "*.rpm" -exec basename {} \; | jq -R -s -c 'split("\n") | map(select(length > 0))')
+
+                # Add to JSON structure: {distro_version: {platform: [packages]}}
+                packages_json=$(echo "$packages_json" | jq --arg dv "$distro_version" --arg plat "$platform" --argjson pkgs "$packages" '.[$dv][$plat] = $pkgs')
+              fi
+            done
+          fi
+        done
+
+        cat <<OUTPUT | tee -a $GITHUB_OUTPUT
+        packages_json<<EOF
+        $packages_json
+        EOF
+        OUTPUT
