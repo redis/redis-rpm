@@ -1,4 +1,4 @@
-# Redis CE with Modules - RPM Packaging
+# Redis Open Source with Modules - RPM Packaging
 
 This repository provides tools and configurations to build and package Redis Open Source with additional modules as RPM packages for RHEL-compatible distributions.
 
