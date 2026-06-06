@@ -151,7 +151,7 @@ runs:
 
     - name: Upload logs when failure
       if: failure()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: build-failure-${{ inputs.platform }}-${{ inputs.distro }}${{ inputs.distro_version }}
         path: logs/${{ env.LOG_FILENAME }}
@@ -165,7 +165,7 @@ runs:
         docker rm builder || true
 
     - name: Upload RPM artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: rpm-${{ inputs.distro }}${{ inputs.distro_version }}-${{ inputs.platform }}
         path: dist/*.rpm
