@@ -45,7 +45,7 @@ runs:
 
     - name: Create verified commit
       if: steps.update-version.outputs.changed_files != ''
-      uses: iarekylew00t/verified-bot-commit@v1
+      uses: iarekylew00t/verified-bot-commit@v2
       with:
         message: "Update Redis version to ${{ inputs.release_tag }}"
         files: ${{ steps.update-version.outputs.changed_files }}
