@@ -61,15 +61,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve cache branch name
+        id: cache_branch
+        shell: bash
+        env:
+          # On PRs use the base branch (e.g. unstable); otherwise the branch itself.
+          REF: ${{ github.base_ref || github.ref_name }}
+        run: echo "name=${REF//\//-}" >> "$GITHUB_OUTPUT"
+
       - name: Generate tags
         id: meta
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ matrix.distro }}${{ matrix.distro_version }}
-            type=raw,value=${{ matrix.distro }}${{ matrix.distro_version }}-${{ github.sha }}
-            type=raw,value=${{ matrix.distro }}${{ matrix.distro_version }}-${{ matrix.platform }}
+            type=raw,value=${{ matrix.distro }}${{ matrix.distro_version }}-${{ github.sha }}-${{ matrix.platform }}
 
       - name: Build and push
         uses: docker/build-push-action@v7
@@ -80,8 +86,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache.${{ matrix.distro }}${{ matrix.distro_version }}.${{ matrix.platform }}
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache.${{ matrix.distro }}${{ matrix.distro_version }}.${{ matrix.platform }},mode=max
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache.${{ matrix.distro }}${{ matrix.distro_version }}.${{ matrix.platform }}.${{ steps.cache_branch.outputs.name }}
+          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}/{1}:buildcache.{2}{3}.{4}.{5},mode=max', env.REGISTRY, env.IMAGE_NAME, matrix.distro, matrix.distro_version, matrix.platform, steps.cache_branch.outputs.name) || '' }}
 
   get-unique-distros:
     needs: populate-env-vars
@@ -116,10 +122,10 @@ jobs:
 
       - name: Merge manifests
         run: |
-          # Get unique distro+version combinations
           distro_version="${{ matrix.distro }}${{ matrix.distro_version }}"
+          sha="${{ github.sha }}"
 
-          # Create multi-arch manifest
-          docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${distro_version} \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${distro_version}-amd64 \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${distro_version}-arm64
+          # Create SHA-pinned multi-arch manifest from the per-arch SHA tags
+          docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${distro_version}-${sha} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${distro_version}-${sha}-amd64 \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${distro_version}-${sha}-arm64

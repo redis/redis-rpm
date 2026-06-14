@@ -35,7 +35,7 @@ runs:
         docker run -d --name builder \
           -v "$PWD:/workspace" \
           -w /workspace \
-          ghcr.io/${{ github.repository }}/builder:${{ inputs.distro }}${{ inputs.distro_version }} \
+          ghcr.io/${{ github.repository }}/builder:${{ inputs.distro }}${{ inputs.distro_version }}-${{ github.sha }} \
           bash -c 'touch ./.started && sleep infinity'
           echo "Waiting for container to start..."
           timeout -v 5 bash -c 'while [ ! -f ./.started ]; do sleep 0.1; done'
