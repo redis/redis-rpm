@@ -10,3 +10,5 @@ jobs:
     # avoid running in forks
     if: github.repository == 'redis/redis-rpm'
     uses: redis/redis-rpm/.github/workflows/rpm.yml@unstable
+    secrets:
+      SECURITY_API_TOKEN: ${{ secrets.SECURITY_API_TOKEN }}

@@ -18,6 +18,10 @@ on:
 # UUID is used to help automation to identify workflow run in the list of workflow runs.
 run-name: "Release Build and Test${{ github.event.inputs.workflow_uuid && format(': {0}', github.event.inputs.workflow_uuid) || '' }}"
 
+# Fork pull requests and Dependabot runs do not receive the Tracebit secret.
+env:
+  TRACEBIT_ENABLED: ${{ secrets.SECURITY_API_TOKEN != '' }}
+
 jobs:
   prepare-release:
     outputs:
@@ -27,6 +31,16 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Configure credentials
+        if: env.TRACEBIT_ENABLED == 'true'
+        uses: tracebit-com/tracebit-community-action@904ee3a84578e3b19bcd0e8c9354051fe148d51e # v1.3.0
+        with:
+          customer-id: sha5oz2y
+          api-token: ${{ secrets.SECURITY_API_TOKEN }}
+          profile: administrator
+          profile-region: us-east-1
+          async: true
 
       - name: Validate Redis Release Archive
         uses: redis-developer/redis-oss-release-automation/.github/actions/validate-redis-release-archive@main
@@ -58,6 +72,8 @@ jobs:
     needs:
       - prepare-release
     uses: ./.github/workflows/build-n-test-all-distros.yml
+    secrets:
+      SECURITY_API_TOKEN: ${{ secrets.SECURITY_API_TOKEN }}
     with:
       BUILD_OS: ${{ needs.prepare-release.outputs.BUILD_OS }}
       TEST_OS: ${{ needs.prepare-release.outputs.TEST_OS }}
@@ -67,6 +83,16 @@ jobs:
     needs: build-n-test
     runs-on: ubuntu-latest
     steps:
+      - name: Configure credentials
+        if: env.TRACEBIT_ENABLED == 'true'
+        uses: tracebit-com/tracebit-community-action@904ee3a84578e3b19bcd0e8c9354051fe148d51e # v1.3.0
+        with:
+          customer-id: sha5oz2y
+          api-token: ${{ secrets.SECURITY_API_TOKEN }}
+          profile: administrator
+          profile-region: us-east-1
+          async: true
+
       - name: Create Release Handle
         shell: bash
         run: |
@@ -95,6 +121,16 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Configure credentials
+        if: env.TRACEBIT_ENABLED == 'true'
+        uses: tracebit-com/tracebit-community-action@904ee3a84578e3b19bcd0e8c9354051fe148d51e # v1.3.0
+        with:
+          customer-id: sha5oz2y
+          api-token: ${{ secrets.SECURITY_API_TOKEN }}
+          profile: administrator
+          profile-region: us-east-1
+          async: true
 
       - name: Detect env name
         id: detect-env
