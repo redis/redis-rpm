@@ -89,6 +89,7 @@ runs:
           source /etc/profile.d/gcc-toolset-13.sh
         fi
         export BUILD_TLS=yes
+        export BUILD_COMPRESSION=yes
         export USE_SYSTEMD=yes
         # Enable RediSearch LTO only where our LLVM toolchain is installed.
         # Rocky 8 and 9 lacks a compatible libstdc++ runtime for the prebuilt LLVM
