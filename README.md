@@ -1,5 +1,7 @@
 # Redis Open Source with Modules - RPM Packaging
 
+[![Protected by Tracebit Community Edition](.github/assets/tracebit-badge.svg)](https://community.tracebit.com/supplychainattacks)
+
 This repository provides tools and configurations to build and package Redis Open Source with additional modules as RPM packages for RHEL-compatible distributions.
 
 ## Features
