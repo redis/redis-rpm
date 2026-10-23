@@ -20,6 +20,9 @@ provides:
   - redis-tools
   - redis-cli
 
+depends:
+  - libzstd
+
 recommends:
   - policycoreutils
   - checkpolicy

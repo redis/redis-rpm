@@ -39,6 +39,10 @@ run-name: >-
 env:
   TRACEBIT_ENABLED: ${{ secrets.SECURITY_API_TOKEN != '' }}
 
+permissions:
+  packages: write
+  contents: read
+
 jobs:
   populate-env-vars:
     runs-on: ["ubuntu-latest"]
