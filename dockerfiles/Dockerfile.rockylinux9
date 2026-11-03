@@ -1,4 +1,4 @@
-FROM rockylinux:9
+FROM docker.io/rockylinux/rockylinux:9
 
 ARG TARGETARCH
 ARG YQ_VERSION=v4.44.3
